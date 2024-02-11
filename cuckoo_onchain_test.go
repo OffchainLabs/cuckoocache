@@ -22,22 +22,27 @@ func TestCuckooOnChain(t *testing.T) {
 	for i := uint64(0); i < capacity-2; i++ {
 		cache.AccessItem(keyFromUint64(i))
 		verifyAccurateGenerationCounts(t, cache)
+		assert.Equal(t, countCachedItems(cache), i+1)
 	}
+	cache = OpenOnChainCuckooTable(storage, capacity)
 	for i := uint64(0); i < capacity-2; i++ {
 		header := cache.readHeader()
 		assert.Equal(t, cache.IsInCache(&header, keyFromUint64(i)), true)
 		verifyAccurateGenerationCounts(t, cache)
 	}
+	cache = OpenOnChainCuckooTable(storage, capacity)
 	assert.Equal(t, cache.readHeader().inCacheCount, capacity-2)
 	verifyAccurateGenerationCounts(t, cache)
 
 	// add items beyond capacity and verify that something was evicted
 	for i := capacity - 2; i < capacity+1; i++ {
+		cache = OpenOnChainCuckooTable(storage, capacity)
 		cache.AccessItem(keyFromUint64(i))
 		verifyAccurateGenerationCounts(t, cache)
 	}
 	foundThemAll := true
 	for i := uint64(0); i < capacity+1; i++ {
+		cache = OpenOnChainCuckooTable(storage, capacity)
 		header := cache.readHeader()
 		if !cache.IsInCache(&header, keyFromUint64(i)) {
 			foundThemAll = false
@@ -46,9 +51,12 @@ func TestCuckooOnChain(t *testing.T) {
 	assert.Equal(t, foundThemAll, false)
 	verifyAccurateGenerationCounts(t, cache)
 
+	cache = OpenOnChainCuckooTable(storage, capacity)
 	sprayOnChainCache(cache, 98113084)
+	cache = OpenOnChainCuckooTable(storage, capacity)
 	verifyAccurateGenerationCounts(t, cache)
 	cache.AccessItem(keyFromUint64(58712))
+	cache = OpenOnChainCuckooTable(storage, capacity)
 	header = cache.readHeader()
 	assert.Equal(t, cache.IsInCache(&header, keyFromUint64(58712)), true)
 }
@@ -65,6 +73,16 @@ func sprayOnChainCache(cache *OnChainCuckooTable, seed uint64) {
 		item := seed + (i % modulus)
 		cache.AccessItem(keyFromUint64(item))
 	}
+}
+
+func countCachedItems(cache *OnChainCuckooTable) uint64 {
+	return ForAllOnChainCachedItems(
+		cache,
+		func(_ CacheItemKey, _ bool, numSoFar uint64) uint64 {
+			return numSoFar + 1
+		},
+		0,
+	)
 }
 
 func verifyAccurateGenerationCounts(t *testing.T, cache *OnChainCuckooTable) {
