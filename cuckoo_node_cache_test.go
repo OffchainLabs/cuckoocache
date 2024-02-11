@@ -7,7 +7,8 @@ import (
 
 func TestNodeCacheLRUProperties(t *testing.T) {
 	capacity := uint64(32)
-	onChain := NewOnChainCuckoo(capacity)
+	onChain := OpenOnChainCuckooTable(NewMockOnChainStorage(), capacity)
+	onChain.Initialize(capacity)
 	backing := NewMockBackingStore()
 	cache := NewNodeCacheCuckoo(capacity, onChain, backing)
 
@@ -42,7 +43,8 @@ func TestNodeCacheLRUProperties(t *testing.T) {
 func TestCacheSubsetProperty(t *testing.T) {
 	onChainCapacity := uint64(32)
 	nodeCapacity := 2*onChainCapacity + 17
-	onChain := NewOnChainCuckoo(onChainCapacity)
+	onChain := OpenOnChainCuckooTable(NewMockOnChainStorage(), onChainCapacity)
+	onChain.Initialize(onChainCapacity)
 	backing := NewMockBackingStore()
 
 	// if both caches are cold, subset property should hold
@@ -57,8 +59,8 @@ func TestCacheSubsetProperty(t *testing.T) {
 	verifyCacheInvariants(t, cache)
 
 	// if on-chain cache advances two generations, subset property should hold
-	startGen := cache.onChain.header.currentGeneration
-	for seed := onChainCapacity; cache.onChain.header.currentGeneration < startGen+2; seed += nodeCapacity {
+	startGen := cache.onChain.readHeader().currentGeneration
+	for seed := onChainCapacity; cache.onChain.readHeader().currentGeneration < startGen+2; seed += nodeCapacity {
 		sprayNodeCache(cache, seed)
 		verifyCacheInvariants(t, cache)
 	}

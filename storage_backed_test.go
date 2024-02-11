@@ -9,7 +9,7 @@ import (
 func TestStorageBacked(t *testing.T) {
 	capacity := uint64(64)
 	storage := NewMockOnChainStorage()
-	sb := newStorageBackedOnChainCuckoo(storage, capacity)
+	sb := OpenOnChainCuckooTable(storage, capacity)
 
 	// everything should be empty to start
 	citem := sb.readTableEntry(3, 17)

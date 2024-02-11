@@ -3,7 +3,7 @@ package generational_cache
 type CacheItemValue uint64
 
 type NodeCacheCuckoo struct {
-	onChain       *OnChainCuckoo
+	onChain       *OnChainCuckooTable
 	localCapacity uint64
 	numInCache    uint64
 	index         map[CacheItemKey]*LruNode
@@ -26,13 +26,14 @@ type LruNode struct {
 // Once established, that property will persist forever.
 func NewNodeCacheCuckoo(
 	localCapacity uint64,
-	onChain *OnChainCuckoo,
+	onChain *OnChainCuckooTable,
 	backingStore CacheBackingStore,
 ) *NodeCacheCuckoo {
-	if localCapacity < onChain.header.capacity {
+	header := onChain.readHeader()
+	if localCapacity < header.capacity {
 		// local node cache must be at least as big as the onchain table's capacity
 		// otherwise there might be repeated hits in the onchain table that miss in the node cache
-		localCapacity = onChain.header.capacity
+		localCapacity = header.capacity
 	}
 	return &NodeCacheCuckoo{
 		onChain:       onChain,
