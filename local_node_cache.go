@@ -1,6 +1,6 @@
 package generational_cache
 
-type CacheItemValue uint64
+type CacheItemValue []byte
 
 type LocalNodeCache struct {
 	onChain       *OnChainCuckooTable
@@ -14,7 +14,7 @@ type LocalNodeCache struct {
 
 type LruNode struct {
 	itemKey    CacheItemKey
-	itemValue  *CacheItemValue
+	itemValue  []byte
 	moreRecent *LruNode
 	lessRecent *LruNode
 }
@@ -58,12 +58,12 @@ func (cache *LocalNodeCache) IsInCache(key CacheItemKey) bool {
 	return cache.index[key] != nil
 }
 
-func (cache *LocalNodeCache) ReadItem(key CacheItemKey) *CacheItemValue {
+func (cache *LocalNodeCache) ReadItem(key CacheItemKey) []byte {
 	cache.onChain.AccessItem(key)
 	return cache.readItemNoOnChainUpdate(key)
 }
 
-func (cache *LocalNodeCache) readItemNoOnChainUpdate(key CacheItemKey) *CacheItemValue {
+func (cache *LocalNodeCache) readItemNoOnChainUpdate(key CacheItemKey) []byte {
 	node := cache.index[key]
 	if node == nil {
 		// item is not in cache, so bring it in as the MRU
@@ -132,7 +132,7 @@ func (cache *LocalNodeCache) SyncFromOnChain() {
 
 func ForAllInLocalNodeCache[Accumulator any](
 	cache *LocalNodeCache,
-	f func(key CacheItemKey, value *CacheItemValue, t Accumulator) Accumulator,
+	f func(key CacheItemKey, value []byte, t Accumulator) Accumulator,
 	t Accumulator,
 ) Accumulator {
 	tt := t

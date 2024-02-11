@@ -3,26 +3,26 @@ package generational_cache
 import "encoding/binary"
 
 type CacheBackingStore interface {
-	Read(key CacheItemKey) *CacheItemValue
+	Read(key CacheItemKey) []byte
 }
 
 type MockCacheBackingStore struct {
-	contents map[CacheItemKey]*CacheItemValue
+	contents map[CacheItemKey][]byte
 }
 
 func NewMockBackingStore() CacheBackingStore {
-	return &MockCacheBackingStore{contents: make(map[CacheItemKey]*CacheItemValue)}
+	return &MockCacheBackingStore{contents: make(map[CacheItemKey][]byte)}
 }
 
-func (mbs *MockCacheBackingStore) Read(key CacheItemKey) *CacheItemValue {
+func (mbs *MockCacheBackingStore) Read(key CacheItemKey) []byte {
 	value := mbs.contents[key]
 	if value == nil {
 		val := binary.LittleEndian.Uint64(key.Bytes()[0:8])
-		value = (*CacheItemValue)(&val)
+		value = binary.LittleEndian.AppendUint64([]byte{}, val)
 	}
-	return value
+	return append([]byte{}, value...)
 }
 
-func (mbs *MockCacheBackingStore) Write(key CacheItemKey, value *CacheItemValue) {
-	mbs.contents[key] = value
+func (mbs *MockCacheBackingStore) Write(key CacheItemKey, value []byte) {
+	mbs.contents[key] = append([]byte{}, value...)
 }

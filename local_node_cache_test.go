@@ -1,6 +1,7 @@
 package generational_cache
 
 import (
+	"bytes"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -103,7 +104,7 @@ func subsetPropertyHolds(cache *LocalNodeCache) bool {
 func numInCacheCorrect(cache *LocalNodeCache) bool {
 	return ForAllInLocalNodeCache[uint64](
 		cache,
-		func(key CacheItemKey, _ *CacheItemValue, numSoFar uint64) uint64 {
+		func(key CacheItemKey, _ []byte, numSoFar uint64) uint64 {
 			return numSoFar + 1
 		},
 		0,
@@ -128,8 +129,8 @@ func verifyItemsAreInCache(t *testing.T, cache *LocalNodeCache, first uint64, la
 func verifyAllCachedValuesCorrect(cache *LocalNodeCache) bool {
 	return ForAllInLocalNodeCache[bool](
 		cache,
-		func(key CacheItemKey, value *CacheItemValue, okSoFar bool) bool {
-			return okSoFar && *value == *cache.backingStore.Read(key)
+		func(key CacheItemKey, value []byte, okSoFar bool) bool {
+			return okSoFar && bytes.Equal(value, cache.backingStore.Read(key))
 		},
 		true,
 	)
