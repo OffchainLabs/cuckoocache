@@ -7,9 +7,10 @@ import (
 
 func TestNodeCacheLRUProperties(t *testing.T) {
 	capacity := uint64(32)
-	onChain := NewOnChainCuckoo(capacity)
+	onChain := OpenOnChainCuckooTable(NewMockOnChainStorage(), capacity)
+	onChain.Initialize(capacity)
 	backing := NewMockBackingStore()
-	cache := NewNodeCacheCuckoo(capacity, onChain, backing)
+	cache := NewLocalNodeCache(capacity, onChain, backing, false)
 
 	for key := uint64(0); key < capacity; key++ {
 		_ = cache.ReadItem(keyFromUint64(key))
@@ -17,12 +18,19 @@ func TestNodeCacheLRUProperties(t *testing.T) {
 	}
 	verifyItemsAreInCache(t, cache, 0, capacity-1)
 
+	cache2 := NewLocalNodeCache(capacity, onChain, backing, true)
+	verifyItemsAreInCache(t, cache2, 0, capacity-1)
+	verifyCacheInvariants(t, cache2)
+
 	_ = cache.ReadItem(keyFromUint64(capacity))
 	_ = cache.ReadItem(keyFromUint64(capacity + 1))
 	assert.Equal(t, cache.IsInCache(keyFromUint64(0)), false)
 	assert.Equal(t, cache.IsInCache(keyFromUint64(1)), false)
 	verifyItemsAreInCache(t, cache, 2, capacity+1)
 	verifyCacheInvariants(t, cache)
+
+	cache2.SyncFromOnChain()
+	verifyCacheInvariants(t, cache2)
 
 	_ = cache.ReadItem(keyFromUint64(0))
 	assert.Equal(t, cache.IsInCache(keyFromUint64(0)), true)
@@ -36,29 +44,33 @@ func TestNodeCacheLRUProperties(t *testing.T) {
 		_ = cache.ReadItem(keyFromUint64(10000 + i))
 		verifyItemsAreInCache(t, cache, 10000, 10000+i)
 		verifyCacheInvariants(t, cache)
+		cache2.SyncFromOnChain()
+		verifyCacheInvariants(t, cache2)
 	}
 }
 
 func TestCacheSubsetProperty(t *testing.T) {
 	onChainCapacity := uint64(32)
 	nodeCapacity := 2*onChainCapacity + 17
-	onChain := NewOnChainCuckoo(onChainCapacity)
+	onChainStorage := NewMockOnChainStorage()
+	onChain := OpenOnChainCuckooTable(onChainStorage, onChainCapacity)
+	onChain.Initialize(onChainCapacity)
 	backing := NewMockBackingStore()
 
 	// if both caches are cold, subset property should hold
-	cache := NewNodeCacheCuckoo(nodeCapacity, onChain, backing)
+	cache := NewLocalNodeCache(nodeCapacity, onChain, backing, false)
 	assert.Equal(t, subsetPropertyHolds(cache), true)
 	verifyCacheInvariants(t, cache)
 
 	// cold-start node cache with a warm on-chain cache, subset property shouldn't hold
 	sprayOnChainCache(onChain, 0)
-	cache = NewNodeCacheCuckoo(nodeCapacity, onChain, backing)
+	cache = NewLocalNodeCache(nodeCapacity, onChain, backing, false)
 	assert.Equal(t, subsetPropertyHolds(cache), false)
 	verifyCacheInvariants(t, cache)
 
 	// if on-chain cache advances two generations, subset property should hold
-	startGen := cache.onChain.header.currentGeneration
-	for seed := onChainCapacity; cache.onChain.header.currentGeneration < startGen+2; seed += nodeCapacity {
+	startGen := cache.onChain.readHeader().currentGeneration
+	for seed := onChainCapacity; cache.onChain.readHeader().currentGeneration < startGen+2; seed += nodeCapacity {
 		sprayNodeCache(cache, seed)
 		verifyCacheInvariants(t, cache)
 	}
@@ -70,10 +82,15 @@ func TestCacheSubsetProperty(t *testing.T) {
 		_ = cache.ReadItem(keyFromUint64(1000000 + i))
 		assert.Equal(t, subsetPropertyHolds(cache), true)
 		verifyCacheInvariants(t, cache)
+		/*
+			cache = NewLocalNodeCache(nodeCapacity, onChain, backing, true)
+			assert.Equal(t, subsetPropertyHolds(cache), true)
+			verifyCacheInvariants(t, cache)
+		*/
 	}
 }
 
-func subsetPropertyHolds(cache *NodeCacheCuckoo) bool {
+func subsetPropertyHolds(cache *LocalNodeCache) bool {
 	return ForAllOnChainCachedItems[bool](
 		cache.onChain,
 		func(key CacheItemKey, _ bool, okSoFar bool) bool {
@@ -83,8 +100,8 @@ func subsetPropertyHolds(cache *NodeCacheCuckoo) bool {
 	)
 }
 
-func numInCacheCorrect(cache *NodeCacheCuckoo) bool {
-	return ForAllCachedItems[uint64](
+func numInCacheCorrect(cache *LocalNodeCache) bool {
+	return ForAllInLocalNodeCache[uint64](
 		cache,
 		func(key CacheItemKey, _ *CacheItemValue, numSoFar uint64) uint64 {
 			return numSoFar + 1
@@ -93,7 +110,7 @@ func numInCacheCorrect(cache *NodeCacheCuckoo) bool {
 	) == cache.numInCache
 }
 
-func sprayNodeCache(cache *NodeCacheCuckoo, seed uint64) {
+func sprayNodeCache(cache *LocalNodeCache, seed uint64) {
 	modulus := 11 * cache.localCapacity / 7
 	for i := uint64(seed); i < seed+cache.localCapacity; i++ {
 		item := seed + (i % modulus)
@@ -101,15 +118,15 @@ func sprayNodeCache(cache *NodeCacheCuckoo, seed uint64) {
 	}
 }
 
-func verifyItemsAreInCache(t *testing.T, cache *NodeCacheCuckoo, first uint64, last uint64) {
+func verifyItemsAreInCache(t *testing.T, cache *LocalNodeCache, first uint64, last uint64) {
 	t.Helper()
 	for i := first; i <= last; i++ {
 		assert.Equal(t, cache.IsInCache(keyFromUint64(i)), true)
 	}
 }
 
-func verifyAllCachedValuesCorrect(cache *NodeCacheCuckoo) bool {
-	return ForAllCachedItems[bool](
+func verifyAllCachedValuesCorrect(cache *LocalNodeCache) bool {
+	return ForAllInLocalNodeCache[bool](
 		cache,
 		func(key CacheItemKey, value *CacheItemValue, okSoFar bool) bool {
 			return okSoFar && *value == *cache.backingStore.Read(key)
@@ -118,7 +135,7 @@ func verifyAllCachedValuesCorrect(cache *NodeCacheCuckoo) bool {
 	)
 }
 
-func verifyCacheInvariants(t *testing.T, cache *NodeCacheCuckoo) {
+func verifyCacheInvariants(t *testing.T, cache *LocalNodeCache) {
 	t.Helper()
 	assert.Equal(t, verifyAllCachedValuesCorrect(cache), true)
 	assert.Equal(t, numInCacheCorrect(cache), true)

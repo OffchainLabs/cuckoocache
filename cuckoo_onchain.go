@@ -23,145 +23,156 @@ type OnChainCuckooHeader struct {
 	inCacheCount      uint64
 }
 
-type OnChainCuckoo struct {
-	header OnChainCuckooHeader
-	table  [][NumLanes]CuckooItem
-}
-
 type CuckooItem struct {
 	itemKey    CacheItemKey
 	generation uint64
 }
 
-func NewOnChainCuckoo(capacity uint64) *OnChainCuckoo {
-	if capacity > MaxCacheSize {
-		return nil
+func (oc *OnChainCuckooTable) Initialize(capacity uint64) {
+	header := OnChainCuckooHeader{
+		capacity:          capacity,
+		currentGeneration: 2, // so that uninitialized CuckooItems don't look like they're in cache
 	}
-	return &OnChainCuckoo{
-		header: OnChainCuckooHeader{
-			capacity:          capacity,
-			currentGeneration: 2, // so that uninitialized CuckooItems don't look like they're in cache
-		},
-		table: make([][NumLanes]CuckooItem, capacity),
-	}
+	oc.writeHeader(header)
 }
 
-func (occ *OnChainCuckoo) IsInCache(itemKey CacheItemKey) bool {
+func (oc *OnChainCuckooTable) IsInCache(header *OnChainCuckooHeader, itemKey CacheItemKey) bool {
 	itemKeyHash := crypto.Keccak256Hash(CacheItemToBytes(itemKey))
 	for lane := uint64(0); lane < NumLanes; lane++ {
-		slot := occ.getSlotForLane(itemKeyHash, lane)
-		if occ.table[slot][lane].itemKey == itemKey && occ.table[slot][lane].generation != 0 {
-			return occ.table[slot][lane].generation+1 >= occ.header.currentGeneration
+		slot := header.getSlotForLane(itemKeyHash, lane)
+		cuckooItem := oc.readTableEntry(slot, lane)
+		if cuckooItem.itemKey == itemKey && cuckooItem.generation != 0 {
+			return cuckooItem.generation+1 >= header.currentGeneration
 		}
 	}
 	return false
 }
 
-func (occ *OnChainCuckoo) Len() uint64 {
-	return occ.header.inCacheCount
-}
-
-func (occ *OnChainCuckoo) AccessItem(itemKey CacheItemKey) bool {
+func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) bool {
+	hdr := oc.readHeader()
+	header := &hdr
 	itemKeyHash := crypto.Keccak256Hash(CacheItemToBytes(itemKey))
 	expiredItemFoundInLane := uint64(NumLanes) // NumLanes means that no expired item has been found yet
 	for lane := uint64(0); lane < NumLanes; lane++ {
-		slot := occ.getSlotForLane(itemKeyHash, lane)
-		if occ.table[slot][lane].itemKey == itemKey {
-			cachedGeneration := occ.table[slot][lane].generation
-			if cachedGeneration == occ.header.currentGeneration {
+		slot := header.getSlotForLane(itemKeyHash, lane)
+		itemFromTable := oc.readTableEntry(slot, lane)
+		if itemFromTable.itemKey == itemKey {
+			cachedGeneration := itemFromTable.generation
+			if cachedGeneration == header.currentGeneration {
 				return true
-			} else if cachedGeneration+1 == occ.header.currentGeneration {
-				occ.table[slot][lane].generation = occ.header.currentGeneration
-				occ.header.currentGenCount += 1
+			} else if cachedGeneration+1 == header.currentGeneration {
+				itemFromTable.generation = header.currentGeneration
+				header.currentGenCount += 1
+				oc.writeTableEntry(slot, lane, itemFromTable)
 				return true
 			} else {
 				// the item is in the table but is expired
-				occ.advanceGenerationIfNeeded()
-				occ.table[slot][lane].generation = occ.header.currentGeneration
-				occ.header.currentGenCount += 1
-				occ.header.inCacheCount += 1
+				_ = oc.advanceGenerationIfNeeded(header)
+				itemFromTable.generation = header.currentGeneration
+				header.currentGenCount += 1
+				header.inCacheCount += 1
+				oc.writeHeader(*header)
 				return false
 			}
-		} else if occ.table[slot][lane].generation+1 < occ.header.currentGeneration {
+		} else if itemFromTable.generation+1 < header.currentGeneration {
 			expiredItemFoundInLane = lane
 		}
 	}
-	occ.advanceGenerationIfNeeded()
+	_ = oc.advanceGenerationIfNeeded(header)
 	if expiredItemFoundInLane < NumLanes {
 		// didn't find the item in the table, so replace an expired item
-		slot := occ.getSlotForLane(itemKeyHash, expiredItemFoundInLane)
-		occ.table[slot][expiredItemFoundInLane] = CuckooItem{itemKey, occ.header.currentGeneration}
-		occ.header.currentGenCount += 1
-		occ.header.inCacheCount += 1
+		slot := header.getSlotForLane(itemKeyHash, expiredItemFoundInLane)
+		oc.writeTableEntry(
+			slot,
+			expiredItemFoundInLane,
+			CuckooItem{itemKey, header.currentGeneration},
+		)
+		header.currentGenCount += 1
+		header.inCacheCount += 1
 	} else {
-		slot := occ.getSlotForLane(itemKeyHash, 0)
-		itemKeyToRelocate := occ.table[slot][0]
-		occ.table[slot][0] = CuckooItem{itemKey: itemKey, generation: occ.header.currentGeneration}
-		occ.header.currentGenCount += 1
-		occ.header.inCacheCount += 1
-		occ.relocateItem(itemKeyToRelocate, 1)
+		slot := header.getSlotForLane(itemKeyHash, 0)
+		itemKeyToRelocate := oc.readTableEntry(slot, 0)
+		oc.writeTableEntry(
+			slot,
+			0,
+			CuckooItem{itemKey: itemKey, generation: header.currentGeneration},
+		)
+		header.currentGenCount += 1
+		header.inCacheCount += 1
+		oc.relocateItem(itemKeyToRelocate, 1, header)
 	}
+	oc.writeHeader(*header)
 	return false
 }
 
-func (occ *OnChainCuckoo) advanceGenerationIfNeeded() {
-	for occ.header.inCacheCount >= occ.header.capacity || occ.header.currentGenCount > 4*occ.header.capacity/5 {
-		occ.header.currentGeneration += 1
-		occ.header.inCacheCount = occ.header.currentGenCount
-		occ.header.currentGenCount = 0
+func (oc *OnChainCuckooTable) advanceGenerationIfNeeded(header *OnChainCuckooHeader) bool {
+	modifiedHeader := false
+	for header.inCacheCount >= header.capacity || header.currentGenCount > 4*header.capacity/5 {
+		header.currentGeneration += 1
+		header.inCacheCount = header.currentGenCount
+		header.currentGenCount = 0
+		modifiedHeader = true
 	}
+	return modifiedHeader
 }
 
 const SliceSizeBytes = (LogMaxCacheSize + 7) / 8
 
-func (occ *OnChainCuckoo) getSlotForLane(itemKeyHash common.Hash, lane uint64) uint64 {
+func (header *OnChainCuckooHeader) getSlotForLane(itemKeyHash common.Hash, lane uint64) uint64 {
 	ret := uint64(0)
 	for i := lane * SliceSizeBytes; i < (lane+1)*SliceSizeBytes; i++ {
 		ret = (ret << 8) + uint64(itemKeyHash[i])
 	}
-	return ret % occ.header.capacity
+	return ret % header.capacity
 }
 
-func (occ *OnChainCuckoo) relocateItem(cuckooItem CuckooItem, triesSoFar uint64) {
+func (oc *OnChainCuckooTable) relocateItem(
+	cuckooItem CuckooItem,
+	triesSoFar uint64,
+	header *OnChainCuckooHeader,
+) {
 	if triesSoFar >= NumLanes {
 		// we failed to find a place, even after several relocations, so just discard the item
 		// this should happen with negligible probability
-		if cuckooItem.generation == occ.header.currentGeneration {
-			occ.header.currentGenCount -= 1
-			occ.header.inCacheCount -= 1
-		} else if cuckooItem.generation+1 == occ.header.currentGeneration {
-			occ.header.inCacheCount -= 1
+		if cuckooItem.generation == header.currentGeneration {
+			header.currentGenCount -= 1
+			header.inCacheCount -= 1
+		} else if cuckooItem.generation+1 == header.currentGeneration {
+			header.inCacheCount -= 1
 		}
 	} else {
 		itemKeyHash := crypto.Keccak256Hash(CacheItemToBytes(cuckooItem.itemKey))
 		for lane := uint64(0); lane < NumLanes; lane++ {
-			slot := occ.getSlotForLane(itemKeyHash, lane)
-			if occ.table[slot][lane].generation+1 < occ.header.currentGeneration {
-				occ.table[slot][lane] = cuckooItem
+			slot := header.getSlotForLane(itemKeyHash, lane)
+			thisItem := oc.readTableEntry(slot, lane)
+			if thisItem.generation+1 < header.currentGeneration {
+				oc.writeTableEntry(slot, lane, cuckooItem)
 				return
 			}
 		}
 
 		// we failed to find a place for the item, so relocate another item, recursively
-		slot := occ.getSlotForLane(itemKeyHash, triesSoFar)
-		displacedItem := occ.table[slot][triesSoFar]
-		occ.table[slot][triesSoFar] = cuckooItem
-		occ.relocateItem(displacedItem, triesSoFar+1)
+		slot := header.getSlotForLane(itemKeyHash, triesSoFar)
+		displacedItem := oc.readTableEntry(slot, triesSoFar)
+		oc.writeTableEntry(slot, triesSoFar, cuckooItem)
+		oc.relocateItem(displacedItem, triesSoFar+1, header)
 	}
 }
 
 func ForAllOnChainCachedItems[Accumulator any](
-	cache *OnChainCuckoo,
+	cache *OnChainCuckooTable,
 	f func(key CacheItemKey, inLatestGeneration bool, t Accumulator) Accumulator,
 	t Accumulator,
 ) Accumulator {
 	tt := t
-	for slot := uint64(0); slot < cache.header.capacity; slot++ {
-		for lane := 0; lane < NumLanes; lane++ {
-			if cache.table[slot][lane].generation+1 >= cache.header.currentGeneration {
+	header := cache.readHeader()
+	for slot := uint64(0); slot < header.capacity; slot++ {
+		for lane := uint64(0); lane < NumLanes; lane++ {
+			thisItem := cache.readTableEntry(slot, lane)
+			if thisItem.generation+1 >= header.currentGeneration {
 				tt = f(
-					cache.table[slot][lane].itemKey,
-					cache.table[slot][lane].generation == cache.header.currentGeneration,
+					thisItem.itemKey,
+					thisItem.generation == header.currentGeneration,
 					tt,
 				)
 			}
