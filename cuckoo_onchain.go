@@ -48,7 +48,8 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 	hdr := oc.readHeader()
 	header := &hdr
 	expiredItemFoundInLane := uint64(NumLanes) // NumLanes means that no expired item has been found yet
-	for lane := uint64(0); lane < NumLanes; lane++ {
+	doubleExpiredFound := false
+	for lane := uint64(0); (!doubleExpiredFound) && (lane < NumLanes); lane++ {
 		slot := header.getSlotForLane(itemKeyHash, lane)
 		itemFromTable := oc.readTableEntry(slot, lane)
 		if itemFromTable.itemKey == itemKey {
@@ -81,6 +82,9 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 			}
 		} else if itemFromTable.generation+1 < header.currentGeneration {
 			expiredItemFoundInLane = lane
+			if itemFromTable.generation+2 < header.currentGeneration {
+				doubleExpiredFound = true
+			}
 		}
 	}
 	_ = oc.advanceGenerationIfNeeded(header)
