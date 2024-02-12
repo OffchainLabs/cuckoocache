@@ -17,6 +17,7 @@ type LruNode[CacheKey LocalNodeCacheKey] struct {
 	itemValue  []byte
 	moreRecent *LruNode[CacheKey]
 	lessRecent *LruNode[CacheKey]
+	generation uint64
 }
 
 // Create a new local node cache. If syncFromOnChain is true, the cache is warmed up by loading all items
@@ -54,12 +55,9 @@ func IsInLocalNodeCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheK
 	return cache.index[key] != nil
 }
 
-func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) []byte {
-	cache.onChain.AccessItem(key.ToCacheKey())
-	return localReadItemNoOnChainUpdate(cache, key)
-}
+func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) ([]byte, bool) {
+	hitOnChain := cache.onChain.AccessItem(key.ToCacheKey())
 
-func localReadItemNoOnChainUpdate[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) []byte {
 	node := cache.index[key]
 	if node == nil {
 		// item is not in cache, so bring it in as the MRU
@@ -105,7 +103,7 @@ func localReadItemNoOnChainUpdate[CacheKey LocalNodeCacheKey](cache *LocalNodeCa
 			cache.mru = node
 		}
 	}
-	return node.itemValue
+	return node.itemValue, hitOnChain
 }
 
 func ForAllInLocalNodeCache[CacheKey LocalNodeCacheKey, Accumulator any](
