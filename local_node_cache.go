@@ -2,21 +2,21 @@ package generational_cache
 
 type CacheItemValue []byte
 
-type LocalNodeCache struct {
+type LocalNodeCache[CacheKey LocalNodeCacheKey] struct {
 	onChain       *OnChainCuckooTable
 	localCapacity uint64
 	numInCache    uint64
-	index         map[CacheItemKey]*LruNode
-	lru           *LruNode
-	mru           *LruNode
+	index         map[CacheKey]*LruNode[CacheKey]
+	lru           *LruNode[CacheKey]
+	mru           *LruNode[CacheKey]
 	backingStore  CacheBackingStore
 }
 
-type LruNode struct {
-	itemKey    CacheItemKey
+type LruNode[CacheKey LocalNodeCacheKey] struct {
+	itemKey    CacheKey
 	itemValue  []byte
-	moreRecent *LruNode
-	lessRecent *LruNode
+	moreRecent *LruNode[CacheKey]
+	lessRecent *LruNode[CacheKey]
 }
 
 // Create a new local node cache. If syncFromOnChain is true, the cache is warmed up by loading all items
@@ -27,43 +27,39 @@ type LruNode struct {
 // on-chain cache. Within two generation-shifts of the on-chain cache, this local cache will have established the
 // subset property, i.e. that every object in the on-chain cache is in this cache.
 // Once established, that property will persist forever.
-func NewLocalNodeCache(
+func NewLocalNodeCache[CacheKey LocalNodeCacheKey](
 	localCapacity uint64,
 	onChain *OnChainCuckooTable,
 	backingStore CacheBackingStore,
-	syncFromOnChain bool,
-) *LocalNodeCache {
+) *LocalNodeCache[CacheKey] {
 	header := onChain.readHeader()
 	if localCapacity < header.capacity {
 		// local node cache must be at least as big as the on-chain table's capacity
 		// otherwise there might be repeated hits in the on-chain table that miss in this node cache
 		localCapacity = header.capacity
 	}
-	cache := &LocalNodeCache{
+	cache := &LocalNodeCache[CacheKey]{
 		onChain:       onChain,
 		localCapacity: localCapacity,
 		numInCache:    0,
-		index:         make(map[CacheItemKey]*LruNode),
+		index:         make(map[CacheKey]*LruNode[CacheKey]),
 		lru:           nil,
 		mru:           nil,
 		backingStore:  backingStore,
 	}
-	if syncFromOnChain {
-		cache.SyncFromOnChain()
-	}
 	return cache
 }
 
-func (cache *LocalNodeCache) IsInCache(key CacheItemKey) bool {
+func IsInLocalNodeCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) bool {
 	return cache.index[key] != nil
 }
 
-func (cache *LocalNodeCache) ReadItem(key CacheItemKey) []byte {
-	cache.onChain.AccessItem(key)
-	return cache.readItemNoOnChainUpdate(key)
+func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) []byte {
+	cache.onChain.AccessItem(key.ToCacheKey())
+	return localReadItemNoOnChainUpdate(cache, key)
 }
 
-func (cache *LocalNodeCache) readItemNoOnChainUpdate(key CacheItemKey) []byte {
+func localReadItemNoOnChainUpdate[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) []byte {
 	node := cache.index[key]
 	if node == nil {
 		// item is not in cache, so bring it in as the MRU
@@ -74,9 +70,9 @@ func (cache *LocalNodeCache) readItemNoOnChainUpdate(key CacheItemKey) []byte {
 			cache.lru.lessRecent = nil
 			cache.numInCache -= 1
 		}
-		node = &LruNode{
+		node = &LruNode[CacheKey]{
 			itemKey:    key,
-			itemValue:  cache.backingStore.Read(key),
+			itemValue:  cache.backingStore.Read(key.ToCacheKey()),
 			moreRecent: nil,
 			lessRecent: cache.mru,
 		}
@@ -112,27 +108,9 @@ func (cache *LocalNodeCache) readItemNoOnChainUpdate(key CacheItemKey) []byte {
 	return node.itemValue
 }
 
-func (cache *LocalNodeCache) SyncFromOnChain() {
-	newGeneration := ForAllOnChainCachedItems(
-		cache.onChain,
-		func(key CacheItemKey, inLatestGeneration bool, newGenSoFar []CacheItemKey) []CacheItemKey {
-			if inLatestGeneration {
-				return append(newGenSoFar, key)
-			} else {
-				_ = cache.readItemNoOnChainUpdate(key)
-				return newGenSoFar
-			}
-		},
-		[]CacheItemKey{},
-	)
-	for _, key := range newGeneration {
-		_ = cache.readItemNoOnChainUpdate(key)
-	}
-}
-
-func ForAllInLocalNodeCache[Accumulator any](
-	cache *LocalNodeCache,
-	f func(key CacheItemKey, value []byte, t Accumulator) Accumulator,
+func ForAllInLocalNodeCache[CacheKey LocalNodeCacheKey, Accumulator any](
+	cache *LocalNodeCache[CacheKey],
+	f func(key CacheKey, value []byte, t Accumulator) Accumulator,
 	t Accumulator,
 ) Accumulator {
 	tt := t
