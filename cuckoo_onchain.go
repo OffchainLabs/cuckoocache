@@ -57,13 +57,23 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 				return true, header.currentGeneration
 			} else if cachedGeneration+1 == header.currentGeneration {
 				itemFromTable.generation = header.currentGeneration
+				if expiredItemFoundInLane < lane {
+					oc.writeTableEntry(slot, lane, itemFromTable)
+				} else {
+					oc.writeTableEntry(slot, lane, itemFromTable)
+				}
 				header.currentGenCount += 1
-				oc.writeTableEntry(slot, lane, itemFromTable)
+				oc.writeHeader(*header)
 				return true, header.currentGeneration
 			} else {
 				// the item is in the table but is expired
 				_ = oc.advanceGenerationIfNeeded(header)
 				itemFromTable.generation = header.currentGeneration
+				if expiredItemFoundInLane < lane {
+					oc.writeTableEntry(slot, lane, itemFromTable)
+				} else {
+					oc.writeTableEntry(slot, lane, itemFromTable)
+				}
 				header.currentGenCount += 1
 				header.inCacheCount += 1
 				oc.writeHeader(*header)

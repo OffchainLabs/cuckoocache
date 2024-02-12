@@ -55,7 +55,10 @@ func IsInLocalNodeCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheK
 	return cache.index[key] != nil
 }
 
-func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) ([]byte, bool) {
+func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](
+	cache *LocalNodeCache[CacheKey],
+	key CacheKey,
+) ([]byte, bool) { // (data, wasHitInCache)
 	hitOnChain, generationAfterAccess := cache.onChain.AccessItem(key.ToCacheKey())
 
 	node := cache.index[key]
