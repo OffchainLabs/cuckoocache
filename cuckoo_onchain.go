@@ -83,6 +83,8 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 		} else if itemFromTable.generation+1 < header.currentGeneration {
 			expiredItemFoundInLane = lane
 			if itemFromTable.generation+2 < header.currentGeneration {
+				// we can stop searching for the item we want, because if the item were in-cache,
+				// it would have overwritten this item in the past
 				doubleExpiredFound = true
 			}
 		}
