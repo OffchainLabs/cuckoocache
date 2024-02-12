@@ -1,7 +1,6 @@
 package generational_cache
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -13,7 +12,7 @@ func TestStorageBacked(t *testing.T) {
 
 	// everything should be empty to start
 	citem := sb.readTableEntry(3, 17)
-	assert.Equal(t, citem.itemKey, common.BytesToAddress(make([]byte, 20)))
+	assert.Equal(t, citem.itemKey, [24]byte{})
 	assert.Equal(t, citem.generation, uint64(0))
 	header := sb.readHeader()
 	assert.Equal(t, header.inCacheCount, uint64(0))
