@@ -56,7 +56,7 @@ func IsInLocalNodeCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheK
 }
 
 func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) ([]byte, bool) {
-	hitOnChain := cache.onChain.AccessItem(key.ToCacheKey())
+	hitOnChain, generationAfterAccess := cache.onChain.AccessItem(key.ToCacheKey())
 
 	node := cache.index[key]
 	if node == nil {
@@ -73,6 +73,7 @@ func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[Ca
 			itemValue:  cache.backingStore.Read(key.ToCacheKey()),
 			moreRecent: nil,
 			lessRecent: cache.mru,
+			generation: generationAfterAccess,
 		}
 		if node.lessRecent != nil {
 			node.lessRecent.moreRecent = node
@@ -85,6 +86,7 @@ func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[Ca
 		cache.numInCache += 1
 	} else {
 		// item is already in the cache, so make it the MRU
+		node.generation = generationAfterAccess
 		if cache.mru != node {
 			if cache.lru == node {
 				cache.lru = node.moreRecent
