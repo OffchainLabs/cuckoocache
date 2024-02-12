@@ -1,18 +1,13 @@
 package generational_cache
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const LogMaxCacheSize = 16
 const MaxCacheSize = 1 << LogMaxCacheSize
 
-type CacheItemKey = common.Address
-
-func CacheItemToBytes(item CacheItemKey) []byte {
-	return item.Bytes()
-}
+type CacheItemKey = [24]byte
 
 const NumLanes = 8
 
@@ -37,7 +32,7 @@ func (oc *OnChainCuckooTable) Initialize(capacity uint64) {
 }
 
 func (oc *OnChainCuckooTable) IsInCache(header *OnChainCuckooHeader, itemKey CacheItemKey) bool {
-	itemKeyHash := crypto.Keccak256Hash(CacheItemToBytes(itemKey))
+	itemKeyHash := crypto.Keccak256(itemKey[:])
 	for lane := uint64(0); lane < NumLanes; lane++ {
 		slot := header.getSlotForLane(itemKeyHash, lane)
 		cuckooItem := oc.readTableEntry(slot, lane)
@@ -49,9 +44,9 @@ func (oc *OnChainCuckooTable) IsInCache(header *OnChainCuckooHeader, itemKey Cac
 }
 
 func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) bool {
+	itemKeyHash := crypto.Keccak256(itemKey[:])
 	hdr := oc.readHeader()
 	header := &hdr
-	itemKeyHash := crypto.Keccak256Hash(CacheItemToBytes(itemKey))
 	expiredItemFoundInLane := uint64(NumLanes) // NumLanes means that no expired item has been found yet
 	for lane := uint64(0); lane < NumLanes; lane++ {
 		slot := header.getSlotForLane(itemKeyHash, lane)
@@ -118,7 +113,7 @@ func (oc *OnChainCuckooTable) advanceGenerationIfNeeded(header *OnChainCuckooHea
 
 const SliceSizeBytes = (LogMaxCacheSize + 7) / 8
 
-func (header *OnChainCuckooHeader) getSlotForLane(itemKeyHash common.Hash, lane uint64) uint64 {
+func (header *OnChainCuckooHeader) getSlotForLane(itemKeyHash []byte, lane uint64) uint64 {
 	ret := uint64(0)
 	for i := lane * SliceSizeBytes; i < (lane+1)*SliceSizeBytes; i++ {
 		ret = (ret << 8) + uint64(itemKeyHash[i])
@@ -141,7 +136,7 @@ func (oc *OnChainCuckooTable) relocateItem(
 			header.inCacheCount -= 1
 		}
 	} else {
-		itemKeyHash := crypto.Keccak256Hash(CacheItemToBytes(cuckooItem.itemKey))
+		itemKeyHash := crypto.Keccak256(cuckooItem.itemKey[:])
 		for lane := uint64(0); lane < NumLanes; lane++ {
 			slot := header.getSlotForLane(itemKeyHash, lane)
 			thisItem := oc.readTableEntry(slot, lane)

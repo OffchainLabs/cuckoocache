@@ -2,7 +2,6 @@ package generational_cache
 
 import (
 	"encoding/binary"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -63,7 +62,9 @@ func TestCuckooOnChain(t *testing.T) {
 
 func keyFromUint64(key uint64) CacheItemKey {
 	h := crypto.Keccak256(binary.LittleEndian.AppendUint64([]byte{}, key))
-	return common.BytesToAddress(h[0:20])
+	ret := [24]byte{}
+	copy(ret[:], h[0:24])
+	return ret
 }
 
 func sprayOnChainCache(cache *OnChainCuckooTable, seed uint64) {

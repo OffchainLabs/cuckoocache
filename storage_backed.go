@@ -47,16 +47,15 @@ func locationForTableEntry(slot, lane uint64) common.Hash {
 
 func (sb *OnChainCuckooTable) readTableEntry(slot, lane uint64) CuckooItem {
 	buf := sb.storage.Read(locationForTableEntry(slot, lane))
+	itemKey := [24]byte{}
+	copy(itemKey[:], buf[0:24])
 	return CuckooItem{
-		itemKey:    common.BytesToAddress(buf[0:20]),
-		generation: binary.LittleEndian.Uint64(buf[20:28]),
+		itemKey:    itemKey,
+		generation: binary.LittleEndian.Uint64(buf[24:32]),
 	}
 }
 
 func (sb *OnChainCuckooTable) writeTableEntry(slot, lane uint64, cuckooItem CuckooItem) {
-	buf := append(
-		binary.LittleEndian.AppendUint64(cuckooItem.itemKey[:], cuckooItem.generation),
-		[]byte{0, 0, 0, 0}...,
-	)
+	buf := binary.LittleEndian.AppendUint64(cuckooItem.itemKey[:], cuckooItem.generation)
 	sb.storage.Write(locationForTableEntry(slot, lane), common.BytesToHash(buf))
 }
