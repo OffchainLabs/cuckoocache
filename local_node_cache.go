@@ -1,18 +1,24 @@
-package generational_cache
+package cuckoo_cache
+
+import (
+	"offchainlabs.com/cuckoo-cache/cacheBackingStore"
+	"offchainlabs.com/cuckoo-cache/cacheKeys"
+	"offchainlabs.com/cuckoo-cache/onChainIndex"
+)
 
 type CacheItemValue []byte
 
-type LocalNodeCache[CacheKey LocalNodeCacheKey] struct {
-	onChain       *OnChainCuckooTable
+type LocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey] struct {
+	onChain       *onChainIndex.OnChainCuckooTable
 	localCapacity uint64
 	numInCache    uint64
 	index         map[CacheKey]*LruNode[CacheKey]
 	lru           *LruNode[CacheKey]
 	mru           *LruNode[CacheKey]
-	backingStore  CacheBackingStore
+	backingStore  cacheBackingStore.CacheBackingStore
 }
 
-type LruNode[CacheKey LocalNodeCacheKey] struct {
+type LruNode[CacheKey cacheKeys.LocalNodeCacheKey] struct {
 	itemKey    CacheKey
 	itemValue  []byte
 	moreRecent *LruNode[CacheKey]
@@ -28,16 +34,16 @@ type LruNode[CacheKey LocalNodeCacheKey] struct {
 // on-chain cache. Within two generation-shifts of the on-chain cache, this local cache will have established the
 // subset property, i.e. that every object in the on-chain cache is in this cache.
 // Once established, that property will persist forever.
-func NewLocalNodeCache[CacheKey LocalNodeCacheKey](
+func NewLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](
 	localCapacity uint64,
-	onChain *OnChainCuckooTable,
-	backingStore CacheBackingStore,
+	onChain *onChainIndex.OnChainCuckooTable,
+	backingStore cacheBackingStore.CacheBackingStore,
 ) *LocalNodeCache[CacheKey] {
-	header := onChain.readHeader()
-	if localCapacity < header.capacity {
+	header := onChain.ReadHeader()
+	if localCapacity < header.Capacity {
 		// local node cache must be at least as big as the on-chain table's capacity
 		// otherwise there might be repeated hits in the on-chain table that miss in this node cache
-		localCapacity = header.capacity
+		localCapacity = header.Capacity
 	}
 	cache := &LocalNodeCache[CacheKey]{
 		onChain:       onChain,
@@ -51,11 +57,11 @@ func NewLocalNodeCache[CacheKey LocalNodeCacheKey](
 	return cache
 }
 
-func IsInLocalNodeCache[CacheKey LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) bool {
+func IsInLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) bool {
 	return cache.index[key] != nil
 }
 
-func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](
+func ReadItemFromLocalCache[CacheKey cacheKeys.LocalNodeCacheKey](
 	cache *LocalNodeCache[CacheKey],
 	key CacheKey,
 ) ([]byte, bool) { // (data, wasHitInCache)
@@ -111,7 +117,7 @@ func ReadItemFromLocalCache[CacheKey LocalNodeCacheKey](
 	return node.itemValue, hitOnChain
 }
 
-func ForAllInLocalNodeCache[CacheKey LocalNodeCacheKey, Accumulator any](
+func ForAllInLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey, Accumulator any](
 	cache *LocalNodeCache[CacheKey],
 	f func(key CacheKey, value []byte, t Accumulator) Accumulator,
 	t Accumulator,

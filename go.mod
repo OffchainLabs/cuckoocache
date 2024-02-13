@@ -1,4 +1,4 @@
-module offchainlabs.com/generationalCache
+module offchainlabs.com/cuckoo-cache
 
 go 1.21.7
 
