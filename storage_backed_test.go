@@ -1,4 +1,4 @@
-package generational_cache
+package cuckoo_cache
 
 import (
 	"github.com/stretchr/testify/assert"

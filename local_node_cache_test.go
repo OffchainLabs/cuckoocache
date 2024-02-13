@@ -1,4 +1,4 @@
-package generational_cache
+package cuckoo_cache
 
 import (
 	"bytes"
