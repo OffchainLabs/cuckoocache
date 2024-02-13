@@ -2,6 +2,7 @@ package evaluation
 
 import (
 	"offchainlabs.com/cuckoo-cache"
+	"offchainlabs.com/cuckoo-cache/cacheBackingStore"
 	"offchainlabs.com/cuckoo-cache/cacheKeys"
 	"offchainlabs.com/cuckoo-cache/onChainIndex"
 	"offchainlabs.com/cuckoo-cache/onChainStorage"
@@ -14,7 +15,7 @@ func EvaluateOnData[CacheKey cacheKeys.LocalNodeCacheKey](
 ) (uint64, uint64) { // (onChainHits, localHits)
 	onChain := onChainIndex.OpenOnChainCuckooTable(onChainStorage.NewMockOnChainStorage(), onChainSize)
 	onChain.Initialize(onChainSize)
-	cache := cuckoo_cache.NewLocalNodeCache[CacheKey](localSize, onChain, cuckoo_cache.NewMockBackingStore())
+	cache := cuckoo_cache.NewLocalNodeCache[CacheKey](localSize, onChain, cacheBackingStore.NewMockBackingStore())
 
 	onChainHits := uint64(0)
 	localHits := uint64(0)

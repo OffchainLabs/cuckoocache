@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
+	"offchainlabs.com/cuckoo-cache/cacheBackingStore"
 	"offchainlabs.com/cuckoo-cache/cacheKeys"
 	"offchainlabs.com/cuckoo-cache/onChainIndex"
 	"offchainlabs.com/cuckoo-cache/onChainStorage"
@@ -15,7 +16,7 @@ func TestNodeCacheLRUProperties(t *testing.T) {
 	capacity := uint64(32)
 	onChain := onChainIndex.OpenOnChainCuckooTable(onChainStorage.NewMockOnChainStorage(), capacity)
 	onChain.Initialize(capacity)
-	backing := NewMockBackingStore()
+	backing := cacheBackingStore.NewMockBackingStore()
 	cache := NewLocalNodeCache[cacheKeys.Uint64LocalCacheKey](capacity, onChain, backing)
 
 	for key := uint64(0); key < capacity; key++ {
@@ -56,7 +57,7 @@ func TestCacheSubsetProperty(t *testing.T) {
 	onChainStorage := onChainStorage.NewMockOnChainStorage()
 	onChain := onChainIndex.OpenOnChainCuckooTable(onChainStorage, onChainCapacity)
 	onChain.Initialize(onChainCapacity)
-	backing := NewMockBackingStore()
+	backing := cacheBackingStore.NewMockBackingStore()
 
 	// if both caches are cold, subset property should hold
 	cache := NewLocalNodeCache[cacheKeys.Uint64LocalCacheKey](nodeCapacity, onChain, backing)

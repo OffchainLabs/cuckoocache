@@ -1,4 +1,4 @@
-package cuckoo_cache
+package cacheBackingStore
 
 import (
 	"github.com/ethereum/go-ethereum/crypto"

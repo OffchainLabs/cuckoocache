@@ -1,6 +1,7 @@
 package cuckoo_cache
 
 import (
+	"offchainlabs.com/cuckoo-cache/cacheBackingStore"
 	"offchainlabs.com/cuckoo-cache/cacheKeys"
 	"offchainlabs.com/cuckoo-cache/onChainIndex"
 )
@@ -14,7 +15,7 @@ type LocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey] struct {
 	index         map[CacheKey]*LruNode[CacheKey]
 	lru           *LruNode[CacheKey]
 	mru           *LruNode[CacheKey]
-	backingStore  CacheBackingStore
+	backingStore  cacheBackingStore.CacheBackingStore
 }
 
 type LruNode[CacheKey cacheKeys.LocalNodeCacheKey] struct {
@@ -36,7 +37,7 @@ type LruNode[CacheKey cacheKeys.LocalNodeCacheKey] struct {
 func NewLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](
 	localCapacity uint64,
 	onChain *onChainIndex.OnChainCuckooTable,
-	backingStore CacheBackingStore,
+	backingStore cacheBackingStore.CacheBackingStore,
 ) *LocalNodeCache[CacheKey] {
 	header := onChain.ReadHeader()
 	if localCapacity < header.Capacity {
