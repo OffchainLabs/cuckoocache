@@ -1,4 +1,4 @@
-package cuckoo_cache
+package evaluation
 
 import (
 	"github.com/stretchr/testify/assert"

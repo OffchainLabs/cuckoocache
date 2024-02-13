@@ -6,14 +6,14 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 	"offchainlabs.com/cuckoo-cache/cacheKeys"
-	"offchainlabs.com/cuckoo-cache/onChain"
-	"offchainlabs.com/cuckoo-cache/storage"
+	"offchainlabs.com/cuckoo-cache/onChainIndex"
+	"offchainlabs.com/cuckoo-cache/onChainStorage"
 	"testing"
 )
 
 func TestNodeCacheLRUProperties(t *testing.T) {
 	capacity := uint64(32)
-	onChain := onChain.OpenOnChainCuckooTable(storage.NewMockOnChainStorage(), capacity)
+	onChain := onChainIndex.OpenOnChainCuckooTable(onChainStorage.NewMockOnChainStorage(), capacity)
 	onChain.Initialize(capacity)
 	backing := NewMockBackingStore()
 	cache := NewLocalNodeCache[cacheKeys.Uint64LocalCacheKey](capacity, onChain, backing)
@@ -53,8 +53,8 @@ func TestNodeCacheLRUProperties(t *testing.T) {
 func TestCacheSubsetProperty(t *testing.T) {
 	onChainCapacity := uint64(32)
 	nodeCapacity := 2*onChainCapacity + 17
-	onChainStorage := storage.NewMockOnChainStorage()
-	onChain := onChain.OpenOnChainCuckooTable(onChainStorage, onChainCapacity)
+	onChainStorage := onChainStorage.NewMockOnChainStorage()
+	onChain := onChainIndex.OpenOnChainCuckooTable(onChainStorage, onChainCapacity)
 	onChain.Initialize(onChainCapacity)
 	backing := NewMockBackingStore()
 
@@ -89,15 +89,15 @@ func TestCacheSubsetProperty(t *testing.T) {
 func subsetPropertyHolds(cache *LocalNodeCache[cacheKeys.Uint64LocalCacheKey]) bool {
 	keysInLocal := ForAllInLocalNodeCache(
 		cache,
-		func(key cacheKeys.Uint64LocalCacheKey, _ []byte, soFar map[onChain.CacheItemKey]struct{}) map[onChain.CacheItemKey]struct{} {
+		func(key cacheKeys.Uint64LocalCacheKey, _ []byte, soFar map[onChainIndex.CacheItemKey]struct{}) map[onChainIndex.CacheItemKey]struct{} {
 			soFar[key.ToCacheKey()] = struct{}{}
 			return soFar
 		},
-		map[onChain.CacheItemKey]struct{}{},
+		map[onChainIndex.CacheItemKey]struct{}{},
 	)
-	return onChain.ForAllOnChainCachedItems(
+	return onChainIndex.ForAllOnChainCachedItems(
 		cache.onChain,
-		func(key onChain.CacheItemKey, _ bool, soFar bool) bool {
+		func(key onChainIndex.CacheItemKey, _ bool, soFar bool) bool {
 			_, exists := keysInLocal[key]
 			return soFar && exists
 		},
@@ -146,7 +146,7 @@ func verifyCacheInvariants(t *testing.T, cache *LocalNodeCache[cacheKeys.Uint64L
 	assert.Equal(t, numInCacheCorrect(cache), true)
 }
 
-func sprayOnChainCache(cache *onChain.OnChainCuckooTable, seed uint64) {
+func sprayOnChainCache(cache *onChainIndex.OnChainCuckooTable, seed uint64) {
 	capacity := cache.ReadHeader().Capacity
 	modulus := 11 * capacity / 7
 	for i := uint64(seed); i < seed+capacity; i++ {
@@ -155,7 +155,7 @@ func sprayOnChainCache(cache *onChain.OnChainCuckooTable, seed uint64) {
 	}
 }
 
-func keyFromUint64(key uint64) onChain.CacheItemKey {
+func keyFromUint64(key uint64) onChainIndex.CacheItemKey {
 	h := crypto.Keccak256(binary.LittleEndian.AppendUint64([]byte{}, key))
 	ret := [24]byte{}
 	copy(ret[:], h[0:24])

@@ -1,14 +1,14 @@
-package onChain
+package onChainIndex
 
 import (
 	"github.com/stretchr/testify/assert"
-	storage2 "offchainlabs.com/cuckoo-cache/storage"
+	"offchainlabs.com/cuckoo-cache/onChainStorage"
 	"testing"
 )
 
 func TestStorageBacked(t *testing.T) {
 	capacity := uint64(64)
-	storage := storage2.NewMockOnChainStorage()
+	storage := onChainStorage.NewMockOnChainStorage()
 	sb := OpenOnChainCuckooTable(storage, capacity)
 
 	// everything should be empty to start

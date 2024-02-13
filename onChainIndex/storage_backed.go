@@ -1,17 +1,17 @@
-package onChain
+package onChainIndex
 
 import (
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/common"
-	"offchainlabs.com/cuckoo-cache/storage"
+	"offchainlabs.com/cuckoo-cache/onChainStorage"
 )
 
 type OnChainCuckooTable struct {
-	storage       storage.OnChainStorage
+	storage       onChainStorage.OnChainStorage
 	cacheCapacity uint64
 }
 
-func OpenOnChainCuckooTable(storage storage.OnChainStorage, cacheCapacity uint64) *OnChainCuckooTable {
+func OpenOnChainCuckooTable(storage onChainStorage.OnChainStorage, cacheCapacity uint64) *OnChainCuckooTable {
 	return &OnChainCuckooTable{storage, cacheCapacity}
 }
 

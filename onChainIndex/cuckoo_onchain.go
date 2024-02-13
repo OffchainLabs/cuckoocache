@@ -1,4 +1,4 @@
-package onChain
+package onChainIndex
 
 const LogMaxCacheSize = 16
 const MaxCacheSize = 1 << LogMaxCacheSize

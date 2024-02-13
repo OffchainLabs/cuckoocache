@@ -1,16 +1,16 @@
-package onChain
+package onChainIndex
 
 import (
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
-	storage2 "offchainlabs.com/cuckoo-cache/storage"
+	"offchainlabs.com/cuckoo-cache/onChainStorage"
 	"testing"
 )
 
 func TestCuckooOnChain(t *testing.T) {
 	capacity := uint64(32)
-	storage := storage2.NewMockOnChainStorage()
+	storage := onChainStorage.NewMockOnChainStorage()
 	cache := OpenOnChainCuckooTable(storage, capacity)
 	cache.Initialize(capacity)
 	header := cache.ReadHeader()

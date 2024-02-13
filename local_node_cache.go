@@ -2,13 +2,13 @@ package cuckoo_cache
 
 import (
 	"offchainlabs.com/cuckoo-cache/cacheKeys"
-	onChain2 "offchainlabs.com/cuckoo-cache/onChain"
+	"offchainlabs.com/cuckoo-cache/onChainIndex"
 )
 
 type CacheItemValue []byte
 
 type LocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey] struct {
-	onChain       *onChain2.OnChainCuckooTable
+	onChain       *onChainIndex.OnChainCuckooTable
 	localCapacity uint64
 	numInCache    uint64
 	index         map[CacheKey]*LruNode[CacheKey]
@@ -35,7 +35,7 @@ type LruNode[CacheKey cacheKeys.LocalNodeCacheKey] struct {
 // Once established, that property will persist forever.
 func NewLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](
 	localCapacity uint64,
-	onChain *onChain2.OnChainCuckooTable,
+	onChain *onChainIndex.OnChainCuckooTable,
 	backingStore CacheBackingStore,
 ) *LocalNodeCache[CacheKey] {
 	header := onChain.ReadHeader()

@@ -2,22 +2,22 @@ package cuckoo_cache
 
 import (
 	"github.com/ethereum/go-ethereum/crypto"
-	"offchainlabs.com/cuckoo-cache/onChain"
+	"offchainlabs.com/cuckoo-cache/onChainIndex"
 )
 
 type CacheBackingStore interface {
-	Read(key onChain.CacheItemKey) []byte
+	Read(key onChainIndex.CacheItemKey) []byte
 }
 
 type MockCacheBackingStore struct {
-	contents map[onChain.CacheItemKey][]byte
+	contents map[onChainIndex.CacheItemKey][]byte
 }
 
 func NewMockBackingStore() CacheBackingStore {
-	return &MockCacheBackingStore{contents: make(map[onChain.CacheItemKey][]byte)}
+	return &MockCacheBackingStore{contents: make(map[onChainIndex.CacheItemKey][]byte)}
 }
 
-func (mbs *MockCacheBackingStore) Read(key onChain.CacheItemKey) []byte {
+func (mbs *MockCacheBackingStore) Read(key onChainIndex.CacheItemKey) []byte {
 	value := mbs.contents[key]
 	if value == nil {
 		value = crypto.Keccak256(key[:])
@@ -25,6 +25,6 @@ func (mbs *MockCacheBackingStore) Read(key onChain.CacheItemKey) []byte {
 	return append([]byte{}, value...)
 }
 
-func (mbs *MockCacheBackingStore) Write(key onChain.CacheItemKey, value []byte) {
+func (mbs *MockCacheBackingStore) Write(key onChainIndex.CacheItemKey, value []byte) {
 	mbs.contents[key] = append([]byte{}, value...)
 }
