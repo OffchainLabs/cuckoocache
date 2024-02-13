@@ -26,7 +26,7 @@ type CuckooItem struct {
 func (oc *OnChainCuckooTable) Initialize(capacity uint64) {
 	header := OnChainCuckooHeader{
 		capacity:          capacity,
-		currentGeneration: 2, // so that uninitialized CuckooItems don't look like they're in cache
+		currentGeneration: 3, // so that uninitialized CuckooItems look like they're double-expired
 	}
 	oc.writeHeader(header)
 }
