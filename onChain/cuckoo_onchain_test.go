@@ -1,18 +1,19 @@
-package cuckoo_cache
+package onChain
 
 import (
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
+	storage2 "offchainlabs.com/cuckoo-cache/storage"
 	"testing"
 )
 
 func TestCuckooOnChain(t *testing.T) {
 	capacity := uint64(32)
-	storage := NewMockOnChainStorage()
+	storage := storage2.NewMockOnChainStorage()
 	cache := OpenOnChainCuckooTable(storage, capacity)
 	cache.Initialize(capacity)
-	header := cache.readHeader()
+	header := cache.ReadHeader()
 	assert.Equal(t, cache.IsInCache(&header, keyFromUint64(0)), false) // verify that uninitialized table items aren't false positives
 	assert.Equal(t, cache.IsInCache(&header, keyFromUint64(31)), false)
 	verifyAccurateGenerationCounts(t, cache)
@@ -25,12 +26,12 @@ func TestCuckooOnChain(t *testing.T) {
 	}
 	cache = OpenOnChainCuckooTable(storage, capacity)
 	for i := uint64(0); i < capacity-2; i++ {
-		header := cache.readHeader()
+		header := cache.ReadHeader()
 		assert.Equal(t, cache.IsInCache(&header, keyFromUint64(i)), true)
 		verifyAccurateGenerationCounts(t, cache)
 	}
 	cache = OpenOnChainCuckooTable(storage, capacity)
-	assert.Equal(t, cache.readHeader().inCacheCount, capacity-2)
+	assert.Equal(t, cache.ReadHeader().InCacheCount, capacity-2)
 	verifyAccurateGenerationCounts(t, cache)
 
 	// add items beyond capacity and verify that something was evicted
@@ -42,7 +43,7 @@ func TestCuckooOnChain(t *testing.T) {
 	foundThemAll := true
 	for i := uint64(0); i < capacity+1; i++ {
 		cache = OpenOnChainCuckooTable(storage, capacity)
-		header := cache.readHeader()
+		header := cache.ReadHeader()
 		if !cache.IsInCache(&header, keyFromUint64(i)) {
 			foundThemAll = false
 		}
@@ -56,7 +57,7 @@ func TestCuckooOnChain(t *testing.T) {
 	verifyAccurateGenerationCounts(t, cache)
 	cache.AccessItem(keyFromUint64(58712))
 	cache = OpenOnChainCuckooTable(storage, capacity)
-	header = cache.readHeader()
+	header = cache.ReadHeader()
 	assert.Equal(t, cache.IsInCache(&header, keyFromUint64(58712)), true)
 }
 
@@ -68,7 +69,7 @@ func keyFromUint64(key uint64) CacheItemKey {
 }
 
 func sprayOnChainCache(cache *OnChainCuckooTable, seed uint64) {
-	capacity := cache.readHeader().capacity
+	capacity := cache.ReadHeader().Capacity
 	modulus := 11 * capacity / 7
 	for i := uint64(seed); i < seed+capacity; i++ {
 		item := seed + (i % modulus)
@@ -88,7 +89,7 @@ func countCachedItems(cache *OnChainCuckooTable) uint64 {
 
 func verifyAccurateGenerationCounts(t *testing.T, cache *OnChainCuckooTable) {
 	t.Helper()
-	header := cache.readHeader()
+	header := cache.ReadHeader()
 	manualLastGenCount := ForAllOnChainCachedItems[uint64](
 		cache,
 		func(key CacheItemKey, inLatestGeneration bool, soFar uint64) uint64 {
@@ -100,7 +101,7 @@ func verifyAccurateGenerationCounts(t *testing.T, cache *OnChainCuckooTable) {
 		},
 		0,
 	)
-	assert.Equal(t, manualLastGenCount, header.currentGenCount)
+	assert.Equal(t, manualLastGenCount, header.CurrentGenCount)
 	manualBothGensCount := ForAllOnChainCachedItems[uint64](
 		cache,
 		func(key CacheItemKey, inLatestGeneration bool, soFar uint64) uint64 {
@@ -108,5 +109,5 @@ func verifyAccurateGenerationCounts(t *testing.T, cache *OnChainCuckooTable) {
 		},
 		0,
 	)
-	assert.Equal(t, manualBothGensCount, header.inCacheCount)
+	assert.Equal(t, manualBothGensCount, header.InCacheCount)
 }

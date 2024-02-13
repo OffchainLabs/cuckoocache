@@ -1,11 +1,17 @@
-package generational_cache
+package cuckoo_cache
 
-func EvaluateOnData[CacheKey LocalNodeCacheKey](
+import (
+	"offchainlabs.com/cuckoo-cache/cacheKeys"
+	onChain2 "offchainlabs.com/cuckoo-cache/onChain"
+	"offchainlabs.com/cuckoo-cache/storage"
+)
+
+func EvaluateOnData[CacheKey cacheKeys.LocalNodeCacheKey](
 	onChainSize uint64,
 	localSize uint64,
 	accesses []CacheKey,
 ) (uint64, uint64) { // (onChainHits, localHits)
-	onChain := OpenOnChainCuckooTable(NewMockOnChainStorage(), onChainSize)
+	onChain := onChain2.OpenOnChainCuckooTable(storage.NewMockOnChainStorage(), onChainSize)
 	onChain.Initialize(onChainSize)
 	cache := NewLocalNodeCache[CacheKey](localSize, onChain, NewMockBackingStore())
 

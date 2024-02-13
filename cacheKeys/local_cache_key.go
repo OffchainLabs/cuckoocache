@@ -1,9 +1,10 @@
-package cuckoo_cache
+package cacheKeys
 
 import (
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"offchainlabs.com/cuckoo-cache/onChain"
 )
 
 type LocalNodeCacheKey interface {
@@ -13,7 +14,7 @@ type LocalNodeCacheKey interface {
 
 type Uint64LocalCacheKey struct {
 	key      uint64
-	cacheKey CacheItemKey
+	cacheKey onChain.CacheItemKey
 }
 
 func NewUint64LocalCacheKey(key uint64) Uint64LocalCacheKey {
