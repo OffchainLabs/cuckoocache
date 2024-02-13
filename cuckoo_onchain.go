@@ -43,34 +43,50 @@ func (oc *OnChainCuckooTable) IsInCache(header *OnChainCuckooHeader, itemKey Cac
 	return false
 }
 
-func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) bool {
+func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { // hit, current generation after access
 	itemKeyHash := crypto.Keccak256(itemKey[:])
 	hdr := oc.readHeader()
 	header := &hdr
 	expiredItemFoundInLane := uint64(NumLanes) // NumLanes means that no expired item has been found yet
-	for lane := uint64(0); lane < NumLanes; lane++ {
+	doubleExpiredFound := false
+	for lane := uint64(0); (!doubleExpiredFound) && (lane < NumLanes); lane++ {
 		slot := header.getSlotForLane(itemKeyHash, lane)
 		itemFromTable := oc.readTableEntry(slot, lane)
 		if itemFromTable.itemKey == itemKey {
 			cachedGeneration := itemFromTable.generation
 			if cachedGeneration == header.currentGeneration {
-				return true
+				return true, header.currentGeneration
 			} else if cachedGeneration+1 == header.currentGeneration {
 				itemFromTable.generation = header.currentGeneration
+				if expiredItemFoundInLane < lane {
+					oc.writeTableEntry(slot, lane, itemFromTable)
+				} else {
+					oc.writeTableEntry(slot, lane, itemFromTable)
+				}
 				header.currentGenCount += 1
-				oc.writeTableEntry(slot, lane, itemFromTable)
-				return true
+				oc.writeHeader(*header)
+				return true, header.currentGeneration
 			} else {
 				// the item is in the table but is expired
 				_ = oc.advanceGenerationIfNeeded(header)
 				itemFromTable.generation = header.currentGeneration
+				if expiredItemFoundInLane < lane {
+					oc.writeTableEntry(slot, lane, itemFromTable)
+				} else {
+					oc.writeTableEntry(slot, lane, itemFromTable)
+				}
 				header.currentGenCount += 1
 				header.inCacheCount += 1
 				oc.writeHeader(*header)
-				return false
+				return false, header.currentGeneration
 			}
 		} else if itemFromTable.generation+1 < header.currentGeneration {
 			expiredItemFoundInLane = lane
+			if itemFromTable.generation+2 < header.currentGeneration {
+				// we can stop searching for the item we want, because if the item were in-cache,
+				// it would have overwritten this item in the past
+				doubleExpiredFound = true
+			}
 		}
 	}
 	_ = oc.advanceGenerationIfNeeded(header)
@@ -97,7 +113,7 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) bool {
 		oc.relocateItem(itemKeyToRelocate, 1, header)
 	}
 	oc.writeHeader(*header)
-	return false
+	return false, header.currentGeneration
 }
 
 func (oc *OnChainCuckooTable) advanceGenerationIfNeeded(header *OnChainCuckooHeader) bool {
