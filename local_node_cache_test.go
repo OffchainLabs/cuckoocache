@@ -14,32 +14,32 @@ func TestNodeCacheLRUProperties(t *testing.T) {
 	cache := NewLocalNodeCache[Uint64LocalCacheKey](capacity, onChain, backing)
 
 	for key := uint64(0); key < capacity; key++ {
-		_, hit := ReadItemFromLocalCache(cache, Uint64LocalCacheKey{key})
+		_, hit := ReadItemFromLocalCache(cache, NewUint64LocalCacheKey(key))
 		assert.Equal(t, hit, false)
 		verifyCacheInvariants(t, cache)
 	}
 	verifyItemsAreInCache(t, cache, 0, capacity-1)
 
-	_, hit := ReadItemFromLocalCache(cache, Uint64LocalCacheKey{capacity})
+	_, hit := ReadItemFromLocalCache(cache, NewUint64LocalCacheKey(capacity))
 	assert.Equal(t, hit, false)
-	_, hit = ReadItemFromLocalCache(cache, Uint64LocalCacheKey{capacity + 1})
+	_, hit = ReadItemFromLocalCache(cache, NewUint64LocalCacheKey(capacity+1))
 	assert.Equal(t, hit, false)
-	assert.Equal(t, IsInLocalNodeCache(cache, Uint64LocalCacheKey{0}), false)
-	assert.Equal(t, IsInLocalNodeCache(cache, Uint64LocalCacheKey{1}), false)
+	assert.Equal(t, IsInLocalNodeCache(cache, NewUint64LocalCacheKey(0)), false)
+	assert.Equal(t, IsInLocalNodeCache(cache, NewUint64LocalCacheKey(1)), false)
 	verifyItemsAreInCache(t, cache, 2, capacity+1)
 	verifyCacheInvariants(t, cache)
 
-	_, hit = ReadItemFromLocalCache(cache, Uint64LocalCacheKey{0})
+	_, hit = ReadItemFromLocalCache(cache, NewUint64LocalCacheKey(0))
 	assert.Equal(t, hit, false)
-	assert.Equal(t, IsInLocalNodeCache(cache, Uint64LocalCacheKey{0}), true)
-	assert.Equal(t, IsInLocalNodeCache(cache, Uint64LocalCacheKey{1}), false)
-	assert.Equal(t, IsInLocalNodeCache(cache, Uint64LocalCacheKey{2}), false)
+	assert.Equal(t, IsInLocalNodeCache(cache, NewUint64LocalCacheKey(0)), true)
+	assert.Equal(t, IsInLocalNodeCache(cache, NewUint64LocalCacheKey(1)), false)
+	assert.Equal(t, IsInLocalNodeCache(cache, NewUint64LocalCacheKey(2)), false)
 	verifyItemsAreInCache(t, cache, 3, capacity+1)
 	verifyCacheInvariants(t, cache)
 
 	sprayNodeCache(cache, 129581247)
 	for i := uint64(0); i < capacity; i++ {
-		_, _ = ReadItemFromLocalCache(cache, Uint64LocalCacheKey{10000 + i})
+		_, _ = ReadItemFromLocalCache(cache, NewUint64LocalCacheKey(10000+i))
 		verifyItemsAreInCache(t, cache, 10000, 10000+i)
 		verifyCacheInvariants(t, cache)
 	}
@@ -75,7 +75,7 @@ func TestCacheSubsetProperty(t *testing.T) {
 
 	// if we exercise the cache, subset property should continue to hold
 	for i := uint64(0); i < 2000; i++ {
-		_, _ = ReadItemFromLocalCache(cache, Uint64LocalCacheKey{1000000 + i})
+		_, _ = ReadItemFromLocalCache(cache, NewUint64LocalCacheKey(1000000+i))
 		assert.Equal(t, subsetPropertyHolds(cache), true)
 		verifyCacheInvariants(t, cache)
 	}
@@ -114,14 +114,14 @@ func sprayNodeCache(cache *LocalNodeCache[Uint64LocalCacheKey], seed uint64) {
 	modulus := 11 * cache.localCapacity / 7
 	for i := uint64(seed); i < seed+cache.localCapacity; i++ {
 		item := seed + (i % modulus)
-		_, _ = ReadItemFromLocalCache(cache, Uint64LocalCacheKey{item})
+		_, _ = ReadItemFromLocalCache(cache, NewUint64LocalCacheKey(item))
 	}
 }
 
 func verifyItemsAreInCache(t *testing.T, cache *LocalNodeCache[Uint64LocalCacheKey], first uint64, last uint64) {
 	t.Helper()
 	for i := first; i <= last; i++ {
-		assert.Equal(t, IsInLocalNodeCache(cache, Uint64LocalCacheKey{i}), true)
+		assert.Equal(t, IsInLocalNodeCache(cache, NewUint64LocalCacheKey(i)), true)
 	}
 }
 
