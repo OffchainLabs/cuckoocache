@@ -1,9 +1,5 @@
 package generational_cache
 
-import (
-	"github.com/ethereum/go-ethereum/crypto"
-)
-
 const LogMaxCacheSize = 16
 const MaxCacheSize = 1 << LogMaxCacheSize
 
@@ -26,15 +22,14 @@ type CuckooItem struct {
 func (oc *OnChainCuckooTable) Initialize(capacity uint64) {
 	header := OnChainCuckooHeader{
 		capacity:          capacity,
-		currentGeneration: 2, // so that uninitialized CuckooItems don't look like they're in cache
+		currentGeneration: 3, // so that uninitialized CuckooItems look like they're double-expired
 	}
 	oc.writeHeader(header)
 }
 
 func (oc *OnChainCuckooTable) IsInCache(header *OnChainCuckooHeader, itemKey CacheItemKey) bool {
-	itemKeyHash := crypto.Keccak256(itemKey[:])
 	for lane := uint64(0); lane < NumLanes; lane++ {
-		slot := header.getSlotForLane(itemKeyHash, lane)
+		slot := header.getSlotForLane(itemKey, lane)
 		cuckooItem := oc.readTableEntry(slot, lane)
 		if cuckooItem.itemKey == itemKey && cuckooItem.generation != 0 {
 			return cuckooItem.generation+1 >= header.currentGeneration
@@ -44,13 +39,12 @@ func (oc *OnChainCuckooTable) IsInCache(header *OnChainCuckooHeader, itemKey Cac
 }
 
 func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { // hit, current generation after access
-	itemKeyHash := crypto.Keccak256(itemKey[:])
 	hdr := oc.readHeader()
 	header := &hdr
 	expiredItemFoundInLane := uint64(NumLanes) // NumLanes means that no expired item has been found yet
 	doubleExpiredFound := false
 	for lane := uint64(0); (!doubleExpiredFound) && (lane < NumLanes); lane++ {
-		slot := header.getSlotForLane(itemKeyHash, lane)
+		slot := header.getSlotForLane(itemKey, lane)
 		itemFromTable := oc.readTableEntry(slot, lane)
 		if itemFromTable.itemKey == itemKey {
 			cachedGeneration := itemFromTable.generation
@@ -92,7 +86,7 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 	_ = oc.advanceGenerationIfNeeded(header)
 	if expiredItemFoundInLane < NumLanes {
 		// didn't find the item in the table, so replace an expired item
-		slot := header.getSlotForLane(itemKeyHash, expiredItemFoundInLane)
+		slot := header.getSlotForLane(itemKey, expiredItemFoundInLane)
 		oc.writeTableEntry(
 			slot,
 			expiredItemFoundInLane,
@@ -101,7 +95,7 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 		header.currentGenCount += 1
 		header.inCacheCount += 1
 	} else {
-		slot := header.getSlotForLane(itemKeyHash, 0)
+		slot := header.getSlotForLane(itemKey, 0)
 		itemKeyToRelocate := oc.readTableEntry(slot, 0)
 		oc.writeTableEntry(
 			slot,
@@ -129,10 +123,10 @@ func (oc *OnChainCuckooTable) advanceGenerationIfNeeded(header *OnChainCuckooHea
 
 const SliceSizeBytes = (LogMaxCacheSize + 7) / 8
 
-func (header *OnChainCuckooHeader) getSlotForLane(itemKeyHash []byte, lane uint64) uint64 {
+func (header *OnChainCuckooHeader) getSlotForLane(itemKey CacheItemKey, lane uint64) uint64 {
 	ret := uint64(0)
 	for i := lane * SliceSizeBytes; i < (lane+1)*SliceSizeBytes; i++ {
-		ret = (ret << 8) + uint64(itemKeyHash[i])
+		ret = (ret << 8) + uint64(itemKey[i])
 	}
 	return ret % header.capacity
 }
@@ -152,9 +146,8 @@ func (oc *OnChainCuckooTable) relocateItem(
 			header.inCacheCount -= 1
 		}
 	} else {
-		itemKeyHash := crypto.Keccak256(cuckooItem.itemKey[:])
 		for lane := uint64(0); lane < NumLanes; lane++ {
-			slot := header.getSlotForLane(itemKeyHash, lane)
+			slot := header.getSlotForLane(cuckooItem.itemKey, lane)
 			thisItem := oc.readTableEntry(slot, lane)
 			if thisItem.generation+1 < header.currentGeneration {
 				oc.writeTableEntry(slot, lane, cuckooItem)
@@ -163,7 +156,7 @@ func (oc *OnChainCuckooTable) relocateItem(
 		}
 
 		// we failed to find a place for the item, so relocate another item, recursively
-		slot := header.getSlotForLane(itemKeyHash, triesSoFar)
+		slot := header.getSlotForLane(cuckooItem.itemKey, triesSoFar)
 		displacedItem := oc.readTableEntry(slot, triesSoFar)
 		oc.writeTableEntry(slot, triesSoFar, cuckooItem)
 		oc.relocateItem(displacedItem, triesSoFar+1, header)
