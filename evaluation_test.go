@@ -12,7 +12,7 @@ func TestEvaluation(t *testing.T) {
 
 	accesses := []Uint64LocalCacheKey{}
 	for i := 0; i < 571; i++ {
-		accesses = append(accesses, Uint64LocalCacheKey{uint64(i)})
+		accesses = append(accesses, NewUint64LocalCacheKey(uint64(i)))
 	}
 	on, local = EvaluateOnData(32, 64, accesses)
 	assert.Equal(t, on, uint64(0))
@@ -20,7 +20,7 @@ func TestEvaluation(t *testing.T) {
 
 	tempAccesses := []Uint64LocalCacheKey{}
 	for i := 0; i < 16; i++ {
-		tempAccesses = append(tempAccesses, Uint64LocalCacheKey{uint64(i)})
+		tempAccesses = append(tempAccesses, NewUint64LocalCacheKey(uint64(i)))
 	}
 	accesses = append(tempAccesses, tempAccesses...)
 	accesses = append(accesses, tempAccesses...)
@@ -30,7 +30,7 @@ func TestEvaluation(t *testing.T) {
 
 	tempAccesses = []Uint64LocalCacheKey{}
 	for i := 0; i < 32; i++ {
-		tempAccesses = append(tempAccesses, Uint64LocalCacheKey{uint64(i)})
+		tempAccesses = append(tempAccesses, NewUint64LocalCacheKey(uint64(i)))
 	}
 	accesses = append(tempAccesses, tempAccesses...)
 	accesses = append(accesses, tempAccesses...)

@@ -3,6 +3,7 @@ package generational_cache
 import (
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type LocalNodeCacheKey interface {
@@ -11,13 +12,18 @@ type LocalNodeCacheKey interface {
 }
 
 type Uint64LocalCacheKey struct {
-	key uint64
+	key      uint64
+	cacheKey CacheItemKey
+}
+
+func NewUint64LocalCacheKey(key uint64) Uint64LocalCacheKey {
+	cacheKey := [24]byte{}
+	copy(cacheKey[:], crypto.Keccak256(binary.LittleEndian.AppendUint64([]byte{}, key)))
+	return Uint64LocalCacheKey{key, cacheKey}
 }
 
 func (ukey Uint64LocalCacheKey) ToCacheKey() [24]byte {
-	ret := [24]byte{}
-	copy(ret[:], binary.LittleEndian.AppendUint64([]byte{}, ukey.key))
-	return ret
+	return ukey.cacheKey
 }
 
 type AddressLocalCacheKey struct {
