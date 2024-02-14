@@ -3,8 +3,8 @@ package onChainIndex
 import (
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/offchainlabs/cuckoo-cache/onChainStorage"
 	"github.com/stretchr/testify/assert"
-	"offchainlabs.com/cuckoo-cache/onChainStorage"
 	"testing"
 )
 

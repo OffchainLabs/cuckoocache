@@ -1,9 +1,9 @@
 package cuckoo_cache
 
 import (
-	"offchainlabs.com/cuckoo-cache/cacheBackingStore"
-	"offchainlabs.com/cuckoo-cache/cacheKeys"
-	"offchainlabs.com/cuckoo-cache/onChainIndex"
+	"github.com/offchainlabs/cuckoo-cache/cacheBackingStore"
+	"github.com/offchainlabs/cuckoo-cache/cacheKeys"
+	"github.com/offchainlabs/cuckoo-cache/onChainIndex"
 )
 
 type CacheItemValue []byte
@@ -115,6 +115,16 @@ func ReadItemFromLocalCache[CacheKey cacheKeys.LocalNodeCacheKey](
 		}
 	}
 	return node.itemValue, hitOnChain
+}
+
+func FlushLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], flushOnChain bool) {
+	cache.index = make(map[CacheKey]*LruNode[CacheKey])
+	cache.lru = nil
+	cache.mru = nil
+	cache.numInCache = 0
+	if flushOnChain {
+		cache.onChain.Flush()
+	}
 }
 
 func ForAllInLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey, Accumulator any](

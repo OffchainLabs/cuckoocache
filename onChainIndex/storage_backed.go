@@ -3,7 +3,7 @@ package onChainIndex
 import (
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/common"
-	"offchainlabs.com/cuckoo-cache/onChainStorage"
+	"github.com/offchainlabs/cuckoo-cache/onChainStorage"
 )
 
 type OnChainCuckooTable struct {

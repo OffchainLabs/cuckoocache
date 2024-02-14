@@ -1,4 +1,4 @@
-module offchainlabs.com/cuckoo-cache
+module github.com/offchainlabs.com/cuckoo-cache
 
 go 1.21.7
 

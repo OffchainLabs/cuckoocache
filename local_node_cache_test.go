@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/offchainlabs/cuckoo-cache/cacheBackingStore"
+	"github.com/offchainlabs/cuckoo-cache/cacheKeys"
+	"github.com/offchainlabs/cuckoo-cache/onChainIndex"
+	"github.com/offchainlabs/cuckoo-cache/onChainStorage"
 	"github.com/stretchr/testify/assert"
-	"offchainlabs.com/cuckoo-cache/cacheBackingStore"
-	"offchainlabs.com/cuckoo-cache/cacheKeys"
-	"offchainlabs.com/cuckoo-cache/onChainIndex"
-	"offchainlabs.com/cuckoo-cache/onChainStorage"
 	"testing"
 )
 
