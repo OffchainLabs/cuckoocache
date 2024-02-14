@@ -2,7 +2,7 @@ package cacheBackingStore
 
 import (
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/offchainlabs.com/cuckoo-cache/onChainIndex"
+	"github.com/offchainlabs/cuckoo-cache/onChainIndex"
 )
 
 type CacheBackingStore interface {
