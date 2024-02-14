@@ -110,6 +110,14 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 	return false, header.CurrentGeneration
 }
 
+func (oc *OnChainCuckooTable) Flush() {
+	header := oc.ReadHeader()
+	header.CurrentGeneration += 3
+	header.CurrentGenCount = 0
+	header.InCacheCount = 0
+	oc.WriteHeader(header)
+}
+
 func (oc *OnChainCuckooTable) advanceGenerationIfNeeded(header *OnChainCuckooHeader) bool {
 	modifiedHeader := false
 	for header.InCacheCount >= header.Capacity || header.CurrentGenCount > 4*header.Capacity/5 {
