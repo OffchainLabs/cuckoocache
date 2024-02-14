@@ -7,7 +7,7 @@ import (
 )
 
 func TestEvaluation(t *testing.T) {
-	on, local := EvaluateOnData(32, 64, []cacheKeys.Uint64LocalCacheKey{})
+	on, local, _, _ := EvaluateOnData(32, 64, []cacheKeys.Uint64LocalCacheKey{})
 	assert.Equal(t, on, uint64(0))
 	assert.Equal(t, local, uint64(0))
 
@@ -15,7 +15,7 @@ func TestEvaluation(t *testing.T) {
 	for i := 0; i < 571; i++ {
 		accesses = append(accesses, cacheKeys.NewUint64LocalCacheKey(uint64(i)))
 	}
-	on, local = EvaluateOnData(32, 64, accesses)
+	on, local, _, _ = EvaluateOnData(32, 64, accesses)
 	assert.Equal(t, on, uint64(0))
 	assert.Equal(t, local, uint64(0))
 
@@ -25,7 +25,7 @@ func TestEvaluation(t *testing.T) {
 	}
 	accesses = append(tempAccesses, tempAccesses...)
 	accesses = append(accesses, tempAccesses...)
-	on, local = EvaluateOnData(32, 64, accesses)
+	on, local, _, _ = EvaluateOnData(32, 64, accesses)
 	assert.Equal(t, on, uint64(32))
 	assert.Equal(t, local, uint64(32))
 
@@ -35,7 +35,7 @@ func TestEvaluation(t *testing.T) {
 	}
 	accesses = append(tempAccesses, tempAccesses...)
 	accesses = append(accesses, tempAccesses...)
-	on, local = EvaluateOnData(32, 64, accesses)
+	on, local, _, _ = EvaluateOnData(32, 64, accesses)
 	assert.Equal(t, on, uint64(64))
 	assert.Equal(t, local, uint64(64))
 }
