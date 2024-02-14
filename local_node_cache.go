@@ -117,6 +117,16 @@ func ReadItemFromLocalCache[CacheKey cacheKeys.LocalNodeCacheKey](
 	return node.itemValue, hitOnChain
 }
 
+func FlushLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], flushOnChain bool) {
+	cache.index = make(map[CacheKey]*LruNode[CacheKey])
+	cache.lru = nil
+	cache.mru = nil
+	cache.numInCache = 0
+	if flushOnChain {
+		cache.onChain.Flush()
+	}
+}
+
 func ForAllInLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey, Accumulator any](
 	cache *LocalNodeCache[CacheKey],
 	f func(key CacheKey, value []byte, t Accumulator) Accumulator,
