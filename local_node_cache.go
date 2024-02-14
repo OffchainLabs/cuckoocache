@@ -1,9 +1,9 @@
 package cuckoo_cache
 
 import (
-	"offchainlabs.com/cuckoo-cache/cacheBackingStore"
-	"offchainlabs.com/cuckoo-cache/cacheKeys"
-	"offchainlabs.com/cuckoo-cache/onChainIndex"
+	"github.com/offchainlabs/cuckoo-cache/cacheBackingStore"
+	"github.com/offchainlabs/cuckoo-cache/cacheKeys"
+	"github.com/offchainlabs/cuckoo-cache/onChainIndex"
 )
 
 type CacheItemValue []byte
