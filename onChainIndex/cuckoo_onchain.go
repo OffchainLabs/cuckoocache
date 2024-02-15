@@ -53,7 +53,7 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 			} else if cachedGeneration+1 == header.CurrentGeneration {
 				itemFromTable.Generation = header.CurrentGeneration
 				if expiredItemFoundInLane < lane {
-					oc.WriteTableEntry(slot, lane, itemFromTable)
+					oc.WriteTableEntry(header.getSlotForLane(itemKey, expiredItemFoundInLane), expiredItemFoundInLane, itemFromTable)
 				} else {
 					oc.WriteTableEntry(slot, lane, itemFromTable)
 				}
@@ -65,7 +65,7 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 				_ = oc.advanceGenerationIfNeeded(header)
 				itemFromTable.Generation = header.CurrentGeneration
 				if expiredItemFoundInLane < lane {
-					oc.WriteTableEntry(slot, lane, itemFromTable)
+					oc.WriteTableEntry(header.getSlotForLane(itemKey, expiredItemFoundInLane), expiredItemFoundInLane, itemFromTable)
 				} else {
 					oc.WriteTableEntry(slot, lane, itemFromTable)
 				}
@@ -110,6 +110,19 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 	return false, header.CurrentGeneration
 }
 
+func (oc *OnChainCuckooTable) findExactMatch(itemKey CacheItemKey, generation uint64, startInLane uint64, header *OnChainCuckooHeader) bool {
+	for lane := startInLane; lane < NumLanes; lane++ {
+		slot := header.getSlotForLane(itemKey, lane)
+		item := oc.ReadTableEntry(slot, lane)
+		if item.ItemKey == itemKey {
+			return item.Generation == generation
+		} else if item.Generation < generation-1 {
+			return false
+		}
+	}
+	return false
+}
+
 func (oc *OnChainCuckooTable) FlushAll() {
 	header := oc.ReadHeader()
 	header.CurrentGeneration += 3
@@ -134,7 +147,7 @@ func (oc *OnChainCuckooTable) FlushOneItem(itemKey CacheItemKey) {
 
 func (oc *OnChainCuckooTable) advanceGenerationIfNeeded(header *OnChainCuckooHeader) bool {
 	modifiedHeader := false
-	for header.InCacheCount >= header.Capacity || header.CurrentGenCount > 4*header.Capacity/5 {
+	for header.InCacheCount >= header.Capacity || header.CurrentGenCount >= 3*header.Capacity/4 {
 		header.CurrentGeneration += 1
 		header.InCacheCount = header.CurrentGenCount
 		header.CurrentGenCount = 0
