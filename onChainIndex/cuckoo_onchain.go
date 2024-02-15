@@ -171,6 +171,12 @@ func (oc *OnChainCuckooTable) relocateItem(
 		for lane := uint64(0); lane < NumLanes; lane++ {
 			slot := header.getSlotForLane(cuckooItem.ItemKey, lane)
 			thisItem := oc.ReadTableEntry(slot, lane)
+			if thisItem.ItemKey == cuckooItem.ItemKey {
+				if thisItem.Generation < cuckooItem.Generation {
+					oc.WriteTableEntry(slot, lane, cuckooItem)
+				}
+				return
+			}
 			if thisItem.Generation+1 < header.CurrentGeneration {
 				oc.WriteTableEntry(slot, lane, cuckooItem)
 				return
