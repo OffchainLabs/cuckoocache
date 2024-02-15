@@ -61,6 +61,26 @@ func TestCuckooOnChain(t *testing.T) {
 	assert.Equal(t, cache.IsInCache(&header, keyFromUint64(58712)), true)
 }
 
+func TestOnChainFlush(t *testing.T) {
+	capacity := uint64(32)
+	storage := onChainStorage.NewMockOnChainStorage()
+	cache := OpenOnChainCuckooTable(storage, capacity)
+	cache.Initialize(capacity)
+
+	sprayOnChainCache(cache, 98113084)
+	cache.AccessItem(keyFromUint64(42))
+	header := cache.ReadHeader()
+	assert.Equal(t, cache.IsInCache(&header, keyFromUint64(42)), true)
+	cache.FlushOneItem(keyFromUint64(42))
+	assert.Equal(t, cache.IsInCache(&header, keyFromUint64(42)), false)
+
+	cache.AccessItem(keyFromUint64(42))
+	cache.FlushAll()
+	header = cache.ReadHeader()
+	assert.Equal(t, cache.IsInCache(&header, keyFromUint64(42)), false)
+	assert.Equal(t, cache.ReadHeader().InCacheCount, uint64(0))
+}
+
 func keyFromUint64(key uint64) CacheItemKey {
 	h := crypto.Keccak256(binary.LittleEndian.AppendUint64([]byte{}, key))
 	ret := [24]byte{}

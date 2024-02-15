@@ -87,6 +87,44 @@ func TestCacheSubsetProperty(t *testing.T) {
 	}
 }
 
+func TestCacheFlush(t *testing.T) {
+	onChainCapacity := uint64(32)
+	nodeCapacity := 2*onChainCapacity + 17
+	storage := onChainStorage.NewMockOnChainStorage()
+	onChain := onChainIndex.OpenOnChainCuckooTable(storage, onChainCapacity)
+	onChain.Initialize(onChainCapacity)
+	backing := cacheBackingStore.NewMockBackingStore()
+	cache := NewLocalNodeCache[cacheKeys.Uint64LocalCacheKey](nodeCapacity, onChain, backing)
+
+	sprayNodeCache(cache, 0)
+	assert.Greater(t, cache.numInCache, uint64(0))
+	key42 := cacheKeys.NewUint64LocalCacheKey(42)
+	_, _ = ReadItemFromLocalCache(cache, key42)
+	assert.Equal(t, IsInLocalNodeCache(cache, key42), true)
+
+	FlushOneItemFromLocalNodeCache(cache, key42, false)
+	assert.Equal(t, IsInLocalNodeCache(cache, key42), false)
+	header := cache.onChain.ReadHeader()
+	assert.Equal(t, cache.onChain.IsInCache(&header, key42.ToCacheKey()), true)
+
+	sprayNodeCache(cache, 0)
+	_, _ = ReadItemFromLocalCache(cache, key42)
+	FlushOneItemFromLocalNodeCache(cache, key42, true)
+	assert.Equal(t, IsInLocalNodeCache(cache, key42), false)
+	header = cache.onChain.ReadHeader()
+	assert.Equal(t, cache.onChain.IsInCache(&header, key42.ToCacheKey()), false)
+
+	sprayNodeCache(cache, 0)
+	FlushLocalNodeCache(cache, false)
+	assert.Equal(t, cache.numInCache, uint64(0))
+	assert.Greater(t, cache.onChain.ReadHeader().InCacheCount, uint64(0))
+
+	sprayNodeCache(cache, 0)
+	FlushLocalNodeCache(cache, true)
+	assert.Equal(t, cache.numInCache, uint64(0))
+	assert.Equal(t, cache.onChain.ReadHeader().InCacheCount, uint64(0))
+}
+
 func subsetPropertyHolds(cache *LocalNodeCache[cacheKeys.Uint64LocalCacheKey]) bool {
 	keysInLocal := ForAllInLocalNodeCache(
 		cache,
