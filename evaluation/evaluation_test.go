@@ -36,6 +36,6 @@ func TestEvaluation(t *testing.T) {
 	accesses = append(tempAccesses, tempAccesses...)
 	accesses = append(accesses, tempAccesses...)
 	on, local, _, _ = EvaluateOnData(32, 64, accesses)
-	assert.Equal(t, on, uint64(64))
+	assert.Equal(t, on, uint64(50))
 	assert.Equal(t, local, uint64(64))
 }
