@@ -123,7 +123,29 @@ func FlushLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeC
 	cache.mru = nil
 	cache.numInCache = 0
 	if flushOnChain {
-		cache.onChain.Flush()
+		cache.onChain.FlushAll()
+	}
+}
+
+func FlushOneItemFromLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey, flushOnChain bool) {
+	node := cache.index[key]
+	if node != nil {
+		if cache.lru == node {
+			cache.lru = node.moreRecent
+		}
+		if cache.mru == node {
+			cache.mru = node.lessRecent
+		}
+		if node.moreRecent != nil {
+			node.moreRecent.lessRecent = node.lessRecent
+		}
+		if node.lessRecent != nil {
+			node.lessRecent.moreRecent = node.moreRecent
+		}
+		delete(cache.index, key)
+	}
+	if flushOnChain {
+		cache.onChain.FlushOneItem(key.ToCacheKey())
 	}
 }
 

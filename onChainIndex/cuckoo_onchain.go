@@ -110,12 +110,26 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 	return false, header.CurrentGeneration
 }
 
-func (oc *OnChainCuckooTable) Flush() {
+func (oc *OnChainCuckooTable) FlushAll() {
 	header := oc.ReadHeader()
 	header.CurrentGeneration += 3
 	header.CurrentGenCount = 0
 	header.InCacheCount = 0
 	oc.WriteHeader(header)
+}
+
+func (oc *OnChainCuckooTable) FlushOneItem(itemKey CacheItemKey) {
+	header := oc.ReadHeader()
+	for lane := uint64(0); lane < NumLanes; lane++ {
+		slot := header.getSlotForLane(itemKey, lane)
+		cuckooItem := oc.ReadTableEntry(slot, lane)
+		if cuckooItem.Generation+3 <= header.CurrentGeneration {
+			return
+		} else if cuckooItem.ItemKey == itemKey && cuckooItem.Generation != 0 {
+			cuckooItem.Generation = 0
+			oc.WriteTableEntry(slot, lane, cuckooItem)
+		}
+	}
 }
 
 func (oc *OnChainCuckooTable) advanceGenerationIfNeeded(header *OnChainCuckooHeader) bool {
@@ -157,6 +171,12 @@ func (oc *OnChainCuckooTable) relocateItem(
 		for lane := uint64(0); lane < NumLanes; lane++ {
 			slot := header.getSlotForLane(cuckooItem.ItemKey, lane)
 			thisItem := oc.ReadTableEntry(slot, lane)
+			if thisItem.ItemKey == cuckooItem.ItemKey {
+				if thisItem.Generation < cuckooItem.Generation {
+					oc.WriteTableEntry(slot, lane, cuckooItem)
+				}
+				return
+			}
 			if thisItem.Generation+1 < header.CurrentGeneration {
 				oc.WriteTableEntry(slot, lane, cuckooItem)
 				return
