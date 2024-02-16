@@ -122,7 +122,7 @@ func (oc *OnChainCuckooTable) FlushOneItem(itemKey CacheItemKey) {
 		if cuckooItem.Generation+3 <= header.CurrentGeneration {
 			return
 		} else if cuckooItem.ItemKey == itemKey && cuckooItem.Generation != 0 {
-			cuckooItem.Generation = 0
+			cuckooItem.Generation = header.CurrentGeneration - 2
 			oc.WriteTableEntry(slot, lane, cuckooItem)
 		}
 	}
