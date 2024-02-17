@@ -68,12 +68,13 @@ func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { 
 		} else if itemFromTable.Generation+1 < header.CurrentGeneration {
 			oc.WriteTableEntry(slot, lane, CuckooItem{ItemKey: itemKey, Generation: header.CurrentGeneration})
 			header.CurrentGenCount += 1
-			if !oc.findExactMatch(itemKey, header.CurrentGeneration-1, lane+1, header) {
+			wasInOldGeneration := oc.findExactMatch(itemKey, header.CurrentGeneration-1, lane+1, header)
+			if !wasInOldGeneration {
 				header.InCacheCount += 1
 			}
 			_ = oc.advanceGenerationIfNeeded(header)
 			oc.WriteHeader(*header)
-			return false, header.CurrentGeneration
+			return wasInOldGeneration, header.CurrentGeneration
 		}
 	}
 
