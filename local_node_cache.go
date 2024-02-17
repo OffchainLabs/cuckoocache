@@ -8,21 +8,21 @@ import (
 
 type CacheItemValue []byte
 
-type LocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey] struct {
+type LocalNodeCache[KeyType cacheKeys.LocalNodeCacheKey] struct {
 	onChain       *onChainIndex.OnChainCuckooTable
 	localCapacity uint64
 	numInCache    uint64
-	index         map[CacheKey]*LruNode[CacheKey]
-	lru           *LruNode[CacheKey]
-	mru           *LruNode[CacheKey]
-	backingStore  cacheBackingStore.CacheBackingStore
+	index         map[KeyType]*LruNode[KeyType]
+	lru           *LruNode[KeyType]
+	mru           *LruNode[KeyType]
+	backingStore  cacheBackingStore.CacheBackingStore[KeyType]
 }
 
-type LruNode[CacheKey cacheKeys.LocalNodeCacheKey] struct {
-	itemKey    CacheKey
+type LruNode[KeyType cacheKeys.LocalNodeCacheKey] struct {
+	itemKey    KeyType
 	itemValue  []byte
-	moreRecent *LruNode[CacheKey]
-	lessRecent *LruNode[CacheKey]
+	moreRecent *LruNode[KeyType]
+	lessRecent *LruNode[KeyType]
 	generation uint64
 }
 
@@ -34,22 +34,22 @@ type LruNode[CacheKey cacheKeys.LocalNodeCacheKey] struct {
 // on-chain cache. Within two generation-shifts of the on-chain cache, this local cache will have established the
 // subset property, i.e. that every object in the on-chain cache is in this cache.
 // Once established, that property will persist forever.
-func NewLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](
+func NewLocalNodeCache[KeyType cacheKeys.LocalNodeCacheKey](
 	localCapacity uint64,
 	onChain *onChainIndex.OnChainCuckooTable,
-	backingStore cacheBackingStore.CacheBackingStore,
-) *LocalNodeCache[CacheKey] {
+	backingStore cacheBackingStore.CacheBackingStore[KeyType],
+) *LocalNodeCache[KeyType] {
 	header := onChain.ReadHeader()
 	if localCapacity < header.Capacity {
 		// local node cache must be at least as big as the on-chain table's capacity
 		// otherwise there might be repeated hits in the on-chain table that miss in this node cache
 		localCapacity = header.Capacity
 	}
-	cache := &LocalNodeCache[CacheKey]{
+	cache := &LocalNodeCache[KeyType]{
 		onChain:       onChain,
 		localCapacity: localCapacity,
 		numInCache:    0,
-		index:         make(map[CacheKey]*LruNode[CacheKey]),
+		index:         make(map[KeyType]*LruNode[KeyType]),
 		lru:           nil,
 		mru:           nil,
 		backingStore:  backingStore,
@@ -79,7 +79,7 @@ func ReadItemFromLocalCache[CacheKey cacheKeys.LocalNodeCacheKey](
 		}
 		node = &LruNode[CacheKey]{
 			itemKey:    key,
-			itemValue:  cache.backingStore.Read(key.ToCacheKey()),
+			itemValue:  cache.backingStore.Read(key),
 			moreRecent: nil,
 			lessRecent: cache.mru,
 			generation: generationAfterAccess,

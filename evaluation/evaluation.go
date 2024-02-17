@@ -8,15 +8,15 @@ import (
 	"github.com/offchainlabs/cuckoo-cache/onChainStorage"
 )
 
-func EvaluateOnData[CacheKey cacheKeys.LocalNodeCacheKey](
+func EvaluateOnData[KeyType cacheKeys.LocalNodeCacheKey](
 	onChainSize uint64,
 	localSize uint64,
-	accesses []CacheKey,
+	accesses []KeyType,
 ) (uint64, uint64, uint64, uint64) { // (onChainHits, localHits, storageReads, storageWrites)
 	storage := onChainStorage.NewMockOnChainStorage()
 	onChain := onChainIndex.OpenOnChainCuckooTable(storage, onChainSize)
 	onChain.Initialize(onChainSize)
-	cache := cuckoo_cache.NewLocalNodeCache[CacheKey](localSize, onChain, cacheBackingStore.NewMockBackingStore())
+	cache := cuckoo_cache.NewLocalNodeCache[KeyType](localSize, onChain, cacheBackingStore.NewMockBackingStore[KeyType]())
 
 	onChainHits := uint64(0)
 	localHits := uint64(0)

@@ -16,7 +16,7 @@ func TestNodeCacheLRUProperties(t *testing.T) {
 	capacity := uint64(32)
 	onChain := onChainIndex.OpenOnChainCuckooTable(onChainStorage.NewMockOnChainStorage(), capacity)
 	onChain.Initialize(capacity)
-	backing := cacheBackingStore.NewMockBackingStore()
+	backing := cacheBackingStore.NewMockBackingStore[cacheKeys.Uint64LocalCacheKey]()
 	cache := NewLocalNodeCache[cacheKeys.Uint64LocalCacheKey](capacity, onChain, backing)
 
 	for key := uint64(0); key < capacity; key++ {
@@ -57,7 +57,7 @@ func TestCacheSubsetProperty(t *testing.T) {
 	onChainStorage := onChainStorage.NewMockOnChainStorage()
 	onChain := onChainIndex.OpenOnChainCuckooTable(onChainStorage, onChainCapacity)
 	onChain.Initialize(onChainCapacity)
-	backing := cacheBackingStore.NewMockBackingStore()
+	backing := cacheBackingStore.NewMockBackingStore[cacheKeys.Uint64LocalCacheKey]()
 
 	// if both caches are cold, subset property should hold
 	cache := NewLocalNodeCache[cacheKeys.Uint64LocalCacheKey](nodeCapacity, onChain, backing)
@@ -93,7 +93,7 @@ func TestCacheFlush(t *testing.T) {
 	storage := onChainStorage.NewMockOnChainStorage()
 	onChain := onChainIndex.OpenOnChainCuckooTable(storage, onChainCapacity)
 	onChain.Initialize(onChainCapacity)
-	backing := cacheBackingStore.NewMockBackingStore()
+	backing := cacheBackingStore.NewMockBackingStore[cacheKeys.Uint64LocalCacheKey]()
 	cache := NewLocalNodeCache[cacheKeys.Uint64LocalCacheKey](nodeCapacity, onChain, backing)
 
 	sprayNodeCache(cache, 0)
@@ -169,11 +169,11 @@ func verifyItemsAreInCache(t *testing.T, cache *LocalNodeCache[cacheKeys.Uint64L
 	}
 }
 
-func verifyAllCachedValuesCorrect[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey]) bool {
-	return ForAllInLocalNodeCache[CacheKey, bool](
+func verifyAllCachedValuesCorrect[KeyType cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[KeyType]) bool {
+	return ForAllInLocalNodeCache[KeyType, bool](
 		cache,
-		func(key CacheKey, value []byte, okSoFar bool) bool {
-			return okSoFar && bytes.Equal(value, cache.backingStore.Read(key.ToCacheKey()))
+		func(key KeyType, value []byte, okSoFar bool) bool {
+			return okSoFar && bytes.Equal(value, cache.backingStore.Read(key))
 		},
 		true,
 	)
