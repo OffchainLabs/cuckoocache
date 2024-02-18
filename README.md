@@ -57,6 +57,52 @@ choose the capacity of the on-chain index to be the capacity
 that you're willing to force upon the minimally-resourced
 node.
 
+### Code examples
+
+To connect to the on-chain cache index, do
+
+`cacheIndex := onChainIndex.OpenOnChainCuckooTable(storage, capacity)`
+
+where `storage` is an instance of `onChainStorage.OnChainStorage` usable
+for reading and writing the index's on-chain state, and `capacity` is the
+maxmimum number of items you'll allow in the index.
+
+Note that `OpenOnChainCuckooTable` assumes that it is connecting to an on-chain
+structure that is already initialized and might be non-empty. If you need to
+initialize a fresh on-chain index, do 
+
+`cacheIndex.Initialize(capacity)`.
+
+Having opened the on-chain index, you can now initialize the local node cache 
+by doing
+
+`cache := NewLocalNodeCache[CacheKeyType](capacity, onChainIndex, backingStore)`
+
+Here `capacity` is the capacity you want for the local node cache, which
+can be different on different nodes, but must be greater than or equal to
+the capacity of the on-chain index. If you pass in a `capacity` less than
+the capacity of `onChainIndex.Capacity` then `cache` will silently use
+a capacity equal to `onChainIndex.Capacity`.  So it's safe to pass in 
+a `capacity` of zero, and you'll get the smallest local node cache that is
+safe.
+
+Having set up your local node cache, you can now read items:
+
+`data, wasCacheHit := ReadItemFromLocalCache(cache, itemKey)`
+
+`data` is a byte slice containing the item's data, and `wasCacheHit` will
+be true iff the access was a hit in the on-chain index.
+
+If you need to flush the caches, do
+
+`FlushLocalNodeCache(cache, alsoFlushOnChain)`
+
+The will make the local node cache empty, and if `alsoFlushOnChain` is true
+it will also make the on-chain index empty. You can also flush a single
+item by doing
+
+`FlushOneItemFromLocalNodeCache(cache, itemKey, alsoFlushOnChain)`
+
 ### Cache replacement policies
 
 The local node cache uses an LRU (Least Recently Used)
@@ -73,10 +119,10 @@ Generational caching keeps a current generation number, which
 increments occasionally. Every item is tagged with the latest
 generation in which it was accessed. If the current generation 
 is `G` then an item is in-cache if its latest access was in 
-generation `G` or `G-1`. If the capacity of the cache is `C`
+generation `G` or `G-1`. For a cache of capacity `C`,
 the generation number increments if an access would cause the
-number of in-cache items to be greater than `C` or if it would
-cause the number of items in the current generation to be
+number of in-cache items to be greater than `C` or 
+the number of items in the current generation to be
 greater than `3C/4`.
 
 Generational replacement can be seen as an approximation to
