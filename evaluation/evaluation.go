@@ -15,11 +15,16 @@ func EvaluateOnData[KeyType cacheKeys.LocalNodeCacheKey](
 	onChainSize uint64,
 	localSize uint64,
 	accesses []KeyType,
-) (uint64, uint64, uint64, uint64) { // (onChainHits, localHits, storageReads, storageWrites)
+) (uint64, uint64, uint64, uint64, error) { // (onChainHits, localHits, storageReads, storageWrites)
 	storage := onChainStorage.NewMockOnChainStorage()
 	onChain := onChainIndex.OpenOnChainCuckooTable(storage, onChainSize)
-	onChain.Initialize(onChainSize)
-	cache := cuckoocache.NewLocalNodeCache[KeyType](localSize, onChain, cacheBackingStore.NewMockBackingStore[KeyType]())
+	if err := onChain.Initialize(onChainSize); err != nil {
+		return 0, 0, 0, 0, err
+	}
+	cache, err := cuckoocache.NewLocalNodeCache[KeyType](localSize, onChain, cacheBackingStore.NewMockBackingStore[KeyType]())
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
 
 	onChainHits := uint64(0)
 	localHits := uint64(0)
@@ -28,7 +33,10 @@ func EvaluateOnData[KeyType cacheKeys.LocalNodeCacheKey](
 		if cuckoocache.IsInLocalNodeCache(cache, key) {
 			localHits++
 		}
-		_, hit := cuckoocache.ReadItemFromLocalCache(cache, key)
+		_, hit, err := cuckoocache.ReadItemFromLocalCache(cache, key)
+		if err != nil {
+			return 0, 0, 0, 0, err
+		}
 		if hit {
 			onChainHits++
 		}
@@ -38,5 +46,5 @@ func EvaluateOnData[KeyType cacheKeys.LocalNodeCacheKey](
 	storageReads -= storageReadsBefore
 	storageWrites -= storageWritesBefore
 
-	return onChainHits, localHits, storageReads, storageWrites
+	return onChainHits, localHits, storageReads, storageWrites, nil
 }

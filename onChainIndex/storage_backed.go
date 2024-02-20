@@ -18,17 +18,20 @@ func OpenOnChainCuckooTable(storage onChainStorage.OnChainStorage, cacheCapacity
 	return &OnChainCuckooTable{storage, cacheCapacity}
 }
 
-func (sb *OnChainCuckooTable) ReadHeader() OnChainCuckooHeader {
-	buf := sb.storage.Read(common.Hash{})
+func (sb *OnChainCuckooTable) ReadHeader() (OnChainCuckooHeader, error) {
+	buf, err := sb.storage.Get(common.Hash{})
+	if err != nil {
+		return OnChainCuckooHeader{}, nil
+	}
 	return OnChainCuckooHeader{
 		Capacity:          binary.LittleEndian.Uint64(buf[0:8]),
 		CurrentGeneration: binary.LittleEndian.Uint64(buf[8:16]),
 		CurrentGenCount:   binary.LittleEndian.Uint64(buf[16:24]),
 		InCacheCount:      binary.LittleEndian.Uint64(buf[24:32]),
-	}
+	}, nil
 }
 
-func (sb *OnChainCuckooTable) WriteHeader(header OnChainCuckooHeader) {
+func (sb *OnChainCuckooTable) WriteHeader(header OnChainCuckooHeader) error {
 	buf := common.BytesToHash(
 		binary.LittleEndian.AppendUint64(
 			binary.LittleEndian.AppendUint64(
@@ -41,7 +44,7 @@ func (sb *OnChainCuckooTable) WriteHeader(header OnChainCuckooHeader) {
 			header.InCacheCount,
 		),
 	)
-	sb.storage.Write(common.Hash{}, buf)
+	return sb.storage.Set(common.Hash{}, buf)
 }
 
 func locationForTableEntry(slot, lane uint64) common.Hash {
@@ -49,17 +52,20 @@ func locationForTableEntry(slot, lane uint64) common.Hash {
 	return common.BytesToHash(binary.LittleEndian.AppendUint64([]byte{}, val))
 }
 
-func (sb *OnChainCuckooTable) ReadTableEntry(slot, lane uint64) CuckooItem {
-	buf := sb.storage.Read(locationForTableEntry(slot, lane))
+func (sb *OnChainCuckooTable) ReadTableEntry(slot, lane uint64) (CuckooItem, error) {
+	buf, err := sb.storage.Get(locationForTableEntry(slot, lane))
+	if err != nil {
+		return CuckooItem{}, err
+	}
 	itemKey := [24]byte{}
 	copy(itemKey[:], buf[0:24])
 	return CuckooItem{
 		ItemKey:    itemKey,
 		Generation: binary.LittleEndian.Uint64(buf[24:32]),
-	}
+	}, nil
 }
 
-func (sb *OnChainCuckooTable) WriteTableEntry(slot, lane uint64, cuckooItem CuckooItem) {
+func (sb *OnChainCuckooTable) WriteTableEntry(slot, lane uint64, cuckooItem CuckooItem) error {
 	buf := binary.LittleEndian.AppendUint64(cuckooItem.ItemKey[:], cuckooItem.Generation)
-	sb.storage.Write(locationForTableEntry(slot, lane), common.BytesToHash(buf))
+	return sb.storage.Set(locationForTableEntry(slot, lane), common.BytesToHash(buf))
 }

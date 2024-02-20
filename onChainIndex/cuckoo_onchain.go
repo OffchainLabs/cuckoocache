@@ -22,114 +22,171 @@ type CuckooItem struct {
 	Generation uint64
 }
 
-func (oc *OnChainCuckooTable) Initialize(capacity uint64) {
+func (oc *OnChainCuckooTable) Initialize(capacity uint64) error {
 	header := OnChainCuckooHeader{
 		Capacity:          capacity,
 		CurrentGeneration: 3, // so that uninitialized CuckooItems look like they're double-expired
 	}
-	oc.WriteHeader(header)
+	return oc.WriteHeader(header)
 }
 
-func (oc *OnChainCuckooTable) IsInCache(header *OnChainCuckooHeader, itemKey CacheItemKey) bool {
+func (oc *OnChainCuckooTable) IsInCache(header *OnChainCuckooHeader, itemKey CacheItemKey) (bool, error) {
 	for lane := uint64(0); lane < NumLanes; lane++ {
 		slot := header.getSlotForLane(itemKey, lane)
-		cuckooItem := oc.ReadTableEntry(slot, lane)
+		cuckooItem, err := oc.ReadTableEntry(slot, lane)
+		if err != nil {
+			return false, err
+		}
 		if cuckooItem.ItemKey == itemKey && cuckooItem.Generation != 0 {
-			return cuckooItem.Generation+1 >= header.CurrentGeneration
+			return cuckooItem.Generation+1 >= header.CurrentGeneration, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64) { // hit, current generation after access
-	hdr := oc.ReadHeader()
+func (oc *OnChainCuckooTable) AccessItem(itemKey CacheItemKey) (bool, uint64, error) { // hit, current generation after access
+	hdr, err := oc.ReadHeader()
+	if err != nil {
+		return false, 0, err
+	}
 	header := &hdr
 	for lane := uint64(0); lane < NumLanes; lane++ {
 		slot := header.getSlotForLane(itemKey, lane)
-		itemFromTable := oc.ReadTableEntry(slot, lane)
+		itemFromTable, err := oc.ReadTableEntry(slot, lane)
+		if err != nil {
+			return false, 0, err
+		}
 		if itemFromTable.ItemKey == itemKey {
 			cachedGeneration := itemFromTable.Generation
 			if cachedGeneration == header.CurrentGeneration {
-				return true, header.CurrentGeneration
+				return true, header.CurrentGeneration, nil
 			} else if cachedGeneration+1 == header.CurrentGeneration {
 				itemFromTable.Generation = header.CurrentGeneration
-				oc.WriteTableEntry(slot, lane, itemFromTable)
+				if err := oc.WriteTableEntry(slot, lane, itemFromTable); err != nil {
+					return false, 0, err
+				}
 				header.CurrentGenCount += 1
 				_ = oc.advanceGenerationIfNeeded(header)
-				oc.WriteHeader(*header)
-				return true, header.CurrentGeneration
+				if err := oc.WriteHeader(*header); err != nil {
+					return false, 0, err
+				}
+				return true, header.CurrentGeneration, nil
 			} else {
 				// the item is in the table but is expired
 				itemFromTable.Generation = header.CurrentGeneration
-				oc.WriteTableEntry(slot, lane, itemFromTable)
+				if err := oc.WriteTableEntry(slot, lane, itemFromTable); err != nil {
+					return false, 0, err
+				}
 				header.CurrentGenCount += 1
 				header.InCacheCount += 1
 				_ = oc.advanceGenerationIfNeeded(header)
-				oc.WriteHeader(*header)
-				return false, header.CurrentGeneration
+				if err := oc.WriteHeader(*header); err != nil {
+					return false, 0, err
+				}
+				return false, header.CurrentGeneration, nil
 			}
 		} else if itemFromTable.Generation+1 < header.CurrentGeneration {
-			oc.WriteTableEntry(slot, lane, CuckooItem{ItemKey: itemKey, Generation: header.CurrentGeneration})
+			if err := oc.WriteTableEntry(
+				slot,
+				lane,
+				CuckooItem{ItemKey: itemKey, Generation: header.CurrentGeneration},
+			); err != nil {
+				return false, 0, err
+			}
 			header.CurrentGenCount += 1
-			wasInOldGeneration := oc.findExactMatch(itemKey, header.CurrentGeneration-1, lane+1, header)
+			wasInOldGeneration, err := oc.findExactMatch(itemKey, header.CurrentGeneration-1, lane+1, header)
+			if err != nil {
+				return false, 0, err
+			}
 			if !wasInOldGeneration {
 				header.InCacheCount += 1
 			}
 			_ = oc.advanceGenerationIfNeeded(header)
-			oc.WriteHeader(*header)
-			return wasInOldGeneration, header.CurrentGeneration
+			if err := oc.WriteHeader(*header); err != nil {
+				return false, 0, err
+			}
+			return wasInOldGeneration, header.CurrentGeneration, nil
 		}
 	}
 
 	slot := header.getSlotForLane(itemKey, 0)
-	itemKeyToRelocate := oc.ReadTableEntry(slot, 0)
-	oc.WriteTableEntry(
+	itemKeyToRelocate, err := oc.ReadTableEntry(slot, 0)
+	if err != nil {
+		return false, 0, err
+	}
+	if err := oc.WriteTableEntry(
 		slot,
 		0,
 		CuckooItem{ItemKey: itemKey, Generation: header.CurrentGeneration},
-	)
+	); err != nil {
+		return false, 0, err
+	}
 	header.CurrentGenCount += 1
 	header.InCacheCount += 1
 
-	oc.relocateItem(itemKeyToRelocate, 1, header)
+	if err := oc.relocateItem(itemKeyToRelocate, 1, header); err != nil {
+		return false, 0, err
+	}
 	_ = oc.advanceGenerationIfNeeded(header)
-	oc.WriteHeader(*header)
-	return false, header.CurrentGeneration
+	if err := oc.WriteHeader(*header); err != nil {
+		return false, 0, err
+	}
+	return false, header.CurrentGeneration, nil
 }
 
-func (oc *OnChainCuckooTable) findExactMatch(itemKey CacheItemKey, generation uint64, startInLane uint64, header *OnChainCuckooHeader) bool {
+func (oc *OnChainCuckooTable) findExactMatch(
+	itemKey CacheItemKey,
+	generation uint64,
+	startInLane uint64,
+	header *OnChainCuckooHeader,
+) (bool, error) {
 	for lane := startInLane; lane < NumLanes; lane++ {
 		slot := header.getSlotForLane(itemKey, lane)
-		item := oc.ReadTableEntry(slot, lane)
+		item, err := oc.ReadTableEntry(slot, lane)
+		if err != nil {
+			return false, err
+		}
 		if item.ItemKey == itemKey {
-			return item.Generation == generation
+			return item.Generation == generation, nil
 		} else if item.Generation < generation-1 {
-			return false
+			return false, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-func (oc *OnChainCuckooTable) FlushAll() {
-	header := oc.ReadHeader()
+func (oc *OnChainCuckooTable) FlushAll() error {
+	header, err := oc.ReadHeader()
+	if err != nil {
+		return err
+	}
 	header.CurrentGeneration += 3
 	header.CurrentGenCount = 0
 	header.InCacheCount = 0
-	oc.WriteHeader(header)
+	return oc.WriteHeader(header)
 }
 
-func (oc *OnChainCuckooTable) FlushOneItem(itemKey CacheItemKey) {
-	header := oc.ReadHeader()
+func (oc *OnChainCuckooTable) FlushOneItem(itemKey CacheItemKey) error {
+	header, err := oc.ReadHeader()
+	if err != nil {
+		return err
+	}
 	for lane := uint64(0); lane < NumLanes; lane++ {
 		slot := header.getSlotForLane(itemKey, lane)
-		cuckooItem := oc.ReadTableEntry(slot, lane)
+		cuckooItem, err := oc.ReadTableEntry(slot, lane)
+		if err != nil {
+			return err
+		}
 		if cuckooItem.Generation+3 <= header.CurrentGeneration {
-			return
+			return nil
 		} else if cuckooItem.ItemKey == itemKey && cuckooItem.Generation != 0 {
 			cuckooItem.Generation = header.CurrentGeneration - 2
-			oc.WriteTableEntry(slot, lane, cuckooItem)
+			if err := oc.WriteTableEntry(slot, lane, cuckooItem); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func (oc *OnChainCuckooTable) advanceGenerationIfNeeded(header *OnChainCuckooHeader) bool {
@@ -157,7 +214,7 @@ func (oc *OnChainCuckooTable) relocateItem(
 	cuckooItem CuckooItem,
 	triesSoFar uint64,
 	header *OnChainCuckooHeader,
-) {
+) error {
 	if triesSoFar >= NumLanes {
 		// we failed to find a place, even after several relocations, so just discard the item
 		// this should happen with negligible probability
@@ -170,44 +227,63 @@ func (oc *OnChainCuckooTable) relocateItem(
 	} else {
 		for lane := uint64(0); lane < NumLanes; lane++ {
 			slot := header.getSlotForLane(cuckooItem.ItemKey, lane)
-			thisItem := oc.ReadTableEntry(slot, lane)
+			thisItem, err := oc.ReadTableEntry(slot, lane)
+			if err != nil {
+				return err
+			}
 			if thisItem.ItemKey == cuckooItem.ItemKey {
 				if thisItem.Generation < cuckooItem.Generation {
-					oc.WriteTableEntry(slot, lane, cuckooItem)
+					if err := oc.WriteTableEntry(slot, lane, cuckooItem); err != nil {
+						return err
+					}
 				}
-				return
+				return nil
 			} else if thisItem.Generation+1 < header.CurrentGeneration {
-				oc.WriteTableEntry(slot, lane, cuckooItem)
-				return
+				return oc.WriteTableEntry(slot, lane, cuckooItem)
 			}
 		}
 
 		// we failed to find a place for the item, so relocate another item, recursively
 		slot := header.getSlotForLane(cuckooItem.ItemKey, triesSoFar)
-		displacedItem := oc.ReadTableEntry(slot, triesSoFar)
-		oc.WriteTableEntry(slot, triesSoFar, cuckooItem)
-		oc.relocateItem(displacedItem, triesSoFar+1, header)
+		displacedItem, err := oc.ReadTableEntry(slot, triesSoFar)
+		if err != nil {
+			return err
+		}
+		if err := oc.WriteTableEntry(slot, triesSoFar, cuckooItem); err != nil {
+			return err
+		}
+		return oc.relocateItem(displacedItem, triesSoFar+1, header)
 	}
+	return nil
 }
 
 func ForAllOnChainCachedItems[Accumulator any](
 	cache *OnChainCuckooTable,
-	f func(key CacheItemKey, inLatestGeneration bool, t Accumulator) Accumulator,
+	f func(key CacheItemKey, inLatestGeneration bool, t Accumulator) (Accumulator, error),
 	t Accumulator,
-) Accumulator {
+) (Accumulator, error) {
 	tt := t
-	header := cache.ReadHeader()
+	header, err := cache.ReadHeader()
+	if err != nil {
+		return tt, err
+	}
 	for slot := uint64(0); slot < header.Capacity; slot++ {
 		for lane := uint64(0); lane < NumLanes; lane++ {
-			thisItem := cache.ReadTableEntry(slot, lane)
+			thisItem, err := cache.ReadTableEntry(slot, lane)
+			if err != nil {
+				return tt, err
+			}
 			if thisItem.Generation+1 >= header.CurrentGeneration {
-				tt = f(
+				tt, err = f(
 					thisItem.ItemKey,
 					thisItem.Generation == header.CurrentGeneration,
 					tt,
 				)
+				if err != nil {
+					return tt, err
+				}
 			}
 		}
 	}
-	return tt
+	return tt, nil
 }

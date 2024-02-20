@@ -15,10 +15,12 @@ func TestStorageBacked(t *testing.T) {
 	sb := OpenOnChainCuckooTable(storage, capacity)
 
 	// everything should be empty to start
-	citem := sb.ReadTableEntry(3, 17)
+	citem, err := sb.ReadTableEntry(3, 17)
+	assert.Nil(t, err)
 	assert.Equal(t, citem.ItemKey, [24]byte{})
 	assert.Equal(t, citem.Generation, uint64(0))
-	header := sb.ReadHeader()
+	header, err := sb.ReadHeader()
+	assert.Nil(t, err)
 	assert.Equal(t, header.InCacheCount, uint64(0))
 	assert.Equal(t, header.Capacity, uint64(0))
 	assert.Equal(t, header.CurrentGenCount, uint64(0))
@@ -30,23 +32,35 @@ func TestStorageBacked(t *testing.T) {
 		CurrentGenCount:   106,
 		InCacheCount:      3,
 	}
-	sb.WriteHeader(myHeader)
-	assert.Equal(t, sb.ReadHeader(), myHeader)
+	assert.Nil(t, sb.WriteHeader(myHeader))
+	header, err = sb.ReadHeader()
+	assert.Nil(t, err)
+	assert.Equal(t, header, myHeader)
 
 	item00 := CuckooItem{
 		ItemKey:    keyFromUint64(13),
 		Generation: 13,
 	}
-	sb.WriteTableEntry(0, 0, item00)
-	assert.Equal(t, sb.ReadHeader(), myHeader)
-	assert.Equal(t, sb.ReadTableEntry(0, 0), item00)
+	assert.Nil(t, sb.WriteTableEntry(0, 0, item00))
+	header, err = sb.ReadHeader()
+	assert.Nil(t, err)
+	assert.Equal(t, header, myHeader)
+	entry, err := sb.ReadTableEntry(0, 0)
+	assert.Nil(t, err)
+	assert.Equal(t, entry, item00)
 
 	item39 := CuckooItem{
 		ItemKey:    keyFromUint64(39),
 		Generation: 39,
 	}
-	sb.WriteTableEntry(3, 9, item39)
-	assert.Equal(t, sb.ReadHeader(), myHeader)
-	assert.Equal(t, sb.ReadTableEntry(0, 0), item00)
-	assert.Equal(t, sb.ReadTableEntry(3, 9), item39)
+	assert.Nil(t, sb.WriteTableEntry(3, 9, item39))
+	header, err = sb.ReadHeader()
+	assert.Nil(t, err)
+	assert.Equal(t, header, myHeader)
+	entry, err = sb.ReadTableEntry(0, 0)
+	assert.Nil(t, err)
+	assert.Equal(t, entry, item00)
+	entry, err = sb.ReadTableEntry(3, 9)
+	assert.Nil(t, err)
+	assert.Equal(t, entry, item39)
 }

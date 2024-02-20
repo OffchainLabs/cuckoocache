@@ -41,8 +41,11 @@ func NewLocalNodeCache[KeyType cacheKeys.LocalNodeCacheKey](
 	localCapacity uint64,
 	onChain *onChainIndex.OnChainCuckooTable,
 	backingStore cacheBackingStore.CacheBackingStore[KeyType],
-) *LocalNodeCache[KeyType] {
-	header := onChain.ReadHeader()
+) (*LocalNodeCache[KeyType], error) {
+	header, err := onChain.ReadHeader()
+	if err != nil {
+		return nil, err
+	}
 	if localCapacity < header.Capacity {
 		// local node cache must be at least as big as the on-chain table's capacity
 		// otherwise there might be repeated hits in the on-chain table that miss in this node cache
@@ -57,7 +60,7 @@ func NewLocalNodeCache[KeyType cacheKeys.LocalNodeCacheKey](
 		mru:           nil,
 		backingStore:  backingStore,
 	}
-	return cache
+	return cache, nil
 }
 
 func IsInLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey) bool {
@@ -67,8 +70,11 @@ func IsInLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCa
 func ReadItemFromLocalCache[CacheKey cacheKeys.LocalNodeCacheKey](
 	cache *LocalNodeCache[CacheKey],
 	key CacheKey,
-) ([]byte, bool) { // (data, wasHitInCache)
-	hitOnChain, generationAfterAccess := cache.onChain.AccessItem(key.ToCacheKey())
+) ([]byte, bool, error) { // (data, wasHitInCache)
+	hitOnChain, generationAfterAccess, err := cache.onChain.AccessItem(key.ToCacheKey())
+	if err != nil {
+		return nil, false, err
+	}
 
 	node := cache.index[key]
 	if node == nil {
@@ -117,20 +123,23 @@ func ReadItemFromLocalCache[CacheKey cacheKeys.LocalNodeCacheKey](
 			cache.mru = node
 		}
 	}
-	return node.itemValue, hitOnChain
+	return node.itemValue, hitOnChain, nil
 }
 
-func FlushLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], flushOnChain bool) {
+func FlushLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], flushOnChain bool) error {
 	cache.index = make(map[CacheKey]*LruNode[CacheKey])
 	cache.lru = nil
 	cache.mru = nil
 	cache.numInCache = 0
 	if flushOnChain {
-		cache.onChain.FlushAll()
+		if err := cache.onChain.FlushAll(); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func FlushOneItemFromLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey, flushOnChain bool) {
+func FlushOneItemFromLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache *LocalNodeCache[CacheKey], key CacheKey, flushOnChain bool) error {
 	node := cache.index[key]
 	if node != nil {
 		if cache.lru == node {
@@ -148,8 +157,11 @@ func FlushOneItemFromLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey](cache 
 		delete(cache.index, key)
 	}
 	if flushOnChain {
-		cache.onChain.FlushOneItem(key.ToCacheKey())
+		if err := cache.onChain.FlushOneItem(key.ToCacheKey()); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func ForAllInLocalNodeCache[CacheKey cacheKeys.LocalNodeCacheKey, Accumulator any](
