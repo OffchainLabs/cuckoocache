@@ -2,7 +2,7 @@ package cacheBackingStore
 
 import (
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/offchainlabs/cuckoo-cache/cacheKeys"
+	"github.com/offchainlabs/cuckoocache/cacheKeys"
 )
 
 type CacheBackingStore[KeyType cacheKeys.LocalNodeCacheKey] struct {

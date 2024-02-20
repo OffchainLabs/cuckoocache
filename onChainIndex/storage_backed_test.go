@@ -1,7 +1,7 @@
 package onChainIndex
 
 import (
-	"github.com/offchainlabs/cuckoo-cache/onChainStorage"
+	"github.com/offchainlabs/cuckoocache/onChainStorage"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

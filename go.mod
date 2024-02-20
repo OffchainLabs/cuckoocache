@@ -1,5 +1,5 @@
 
-module github.com/offchainlabs/cuckoo-cache
+module github.com/offchainlabs/cuckoocache
 
 go 1.21.7
 

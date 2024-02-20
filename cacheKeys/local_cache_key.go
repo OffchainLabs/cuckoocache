@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/offchainlabs/cuckoo-cache/onChainIndex"
+	"github.com/offchainlabs/cuckoocache/onChainIndex"
 )
 
 type LocalNodeCacheKey interface {

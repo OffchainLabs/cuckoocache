@@ -1,7 +1,7 @@
 package evaluation
 
 import (
-	"github.com/offchainlabs/cuckoo-cache/cacheKeys"
+	"github.com/offchainlabs/cuckoocache/cacheKeys"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

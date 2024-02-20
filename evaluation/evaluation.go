@@ -1,11 +1,11 @@
 package evaluation
 
 import (
-	"github.com/offchainlabs/cuckoo-cache"
-	"github.com/offchainlabs/cuckoo-cache/cacheBackingStore"
-	"github.com/offchainlabs/cuckoo-cache/cacheKeys"
-	"github.com/offchainlabs/cuckoo-cache/onChainIndex"
-	"github.com/offchainlabs/cuckoo-cache/onChainStorage"
+	"github.com/offchainlabs/cuckoocache"
+	"github.com/offchainlabs/cuckoocache/cacheBackingStore"
+	"github.com/offchainlabs/cuckoocache/cacheKeys"
+	"github.com/offchainlabs/cuckoocache/onChainIndex"
+	"github.com/offchainlabs/cuckoocache/onChainStorage"
 )
 
 func EvaluateOnData[KeyType cacheKeys.LocalNodeCacheKey](
