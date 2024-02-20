@@ -12,23 +12,33 @@ import (
 type OnChainCuckooTable struct {
 	storage       onChainStorage.OnChainStorage
 	cacheCapacity uint64
+	header        onChainStorage.OnChainStorageSlot
+	slots         []onChainStorage.OnChainStorageSlot
 }
 
 func OpenOnChainCuckooTable(storage onChainStorage.OnChainStorage, cacheCapacity uint64) *OnChainCuckooTable {
-	return &OnChainCuckooTable{storage, cacheCapacity}
+	return &OnChainCuckooTable{
+		storage:       storage,
+		cacheCapacity: cacheCapacity,
+		header:        storage.Slot(common.Hash{}),
+		slots:         make([]onChainStorage.OnChainStorageSlot, cacheCapacity*NumLanes),
+	}
 }
 
-func (sb *OnChainCuckooTable) ReadHeader() OnChainCuckooHeader {
-	buf := sb.storage.Read(common.Hash{})
+func (sb *OnChainCuckooTable) ReadHeader() (OnChainCuckooHeader, error) {
+	buf, err := sb.header.Get()
+	if err != nil {
+		return OnChainCuckooHeader{}, nil
+	}
 	return OnChainCuckooHeader{
 		Capacity:          binary.LittleEndian.Uint64(buf[0:8]),
 		CurrentGeneration: binary.LittleEndian.Uint64(buf[8:16]),
 		CurrentGenCount:   binary.LittleEndian.Uint64(buf[16:24]),
 		InCacheCount:      binary.LittleEndian.Uint64(buf[24:32]),
-	}
+	}, nil
 }
 
-func (sb *OnChainCuckooTable) WriteHeader(header OnChainCuckooHeader) {
+func (sb *OnChainCuckooTable) WriteHeader(header OnChainCuckooHeader) error {
 	buf := common.BytesToHash(
 		binary.LittleEndian.AppendUint64(
 			binary.LittleEndian.AppendUint64(
@@ -41,25 +51,33 @@ func (sb *OnChainCuckooTable) WriteHeader(header OnChainCuckooHeader) {
 			header.InCacheCount,
 		),
 	)
-	sb.storage.Write(common.Hash{}, buf)
+	return sb.header.Set(buf)
 }
 
-func locationForTableEntry(slot, lane uint64) common.Hash {
-	val := 1 + lane + NumLanes*slot
-	return common.BytesToHash(binary.LittleEndian.AppendUint64([]byte{}, val))
+func (sb *OnChainCuckooTable) slotForTableEntry(slot, lane uint64) onChainStorage.OnChainStorageSlot {
+	slotNum := lane*sb.cacheCapacity + slot
+	theSlot := sb.slots[slotNum]
+	if theSlot == nil {
+		theSlot = sb.storage.Slot(common.BytesToHash(binary.LittleEndian.AppendUint64([]byte{}, slotNum+1)))
+		sb.slots[slotNum] = theSlot
+	}
+	return theSlot
 }
 
-func (sb *OnChainCuckooTable) ReadTableEntry(slot, lane uint64) CuckooItem {
-	buf := sb.storage.Read(locationForTableEntry(slot, lane))
+func (sb *OnChainCuckooTable) ReadTableEntry(slot, lane uint64) (CuckooItem, error) {
+	buf, err := sb.slotForTableEntry(slot, lane).Get()
+	if err != nil {
+		return CuckooItem{}, err
+	}
 	itemKey := [24]byte{}
 	copy(itemKey[:], buf[0:24])
 	return CuckooItem{
 		ItemKey:    itemKey,
 		Generation: binary.LittleEndian.Uint64(buf[24:32]),
-	}
+	}, nil
 }
 
-func (sb *OnChainCuckooTable) WriteTableEntry(slot, lane uint64, cuckooItem CuckooItem) {
+func (sb *OnChainCuckooTable) WriteTableEntry(slot, lane uint64, cuckooItem CuckooItem) error {
 	buf := binary.LittleEndian.AppendUint64(cuckooItem.ItemKey[:], cuckooItem.Generation)
-	sb.storage.Write(locationForTableEntry(slot, lane), common.BytesToHash(buf))
+	return sb.slotForTableEntry(slot, lane).Set(common.BytesToHash(buf))
 }
