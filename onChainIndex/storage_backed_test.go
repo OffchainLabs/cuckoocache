@@ -15,7 +15,7 @@ func TestStorageBacked(t *testing.T) {
 	sb := OpenOnChainCuckooTable(storage, capacity)
 
 	// everything should be empty to start
-	citem, err := sb.ReadTableEntry(3, 17)
+	citem, err := sb.ReadTableEntry(17, 3)
 	assert.Nil(t, err)
 	assert.Equal(t, citem.ItemKey, [24]byte{})
 	assert.Equal(t, citem.Generation, uint64(0))
@@ -53,14 +53,14 @@ func TestStorageBacked(t *testing.T) {
 		ItemKey:    keyFromUint64(39),
 		Generation: 39,
 	}
-	assert.Nil(t, sb.WriteTableEntry(3, 9, item39))
+	assert.Nil(t, sb.WriteTableEntry(9, 3, item39))
 	header, err = sb.ReadHeader()
 	assert.Nil(t, err)
 	assert.Equal(t, header, myHeader)
 	entry, err = sb.ReadTableEntry(0, 0)
 	assert.Nil(t, err)
 	assert.Equal(t, entry, item00)
-	entry, err = sb.ReadTableEntry(3, 9)
+	entry, err = sb.ReadTableEntry(9, 3)
 	assert.Nil(t, err)
 	assert.Equal(t, entry, item39)
 }
