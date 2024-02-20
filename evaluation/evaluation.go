@@ -1,3 +1,6 @@
+// Copyright 2024, Offchain Labs, Inc.
+// For license information, see https://github.com/OffchainLabs/nitro/blob/master/LICENSE
+
 package evaluation
 
 import (
@@ -16,16 +19,16 @@ func EvaluateOnData[KeyType cacheKeys.LocalNodeCacheKey](
 	storage := onChainStorage.NewMockOnChainStorage()
 	onChain := onChainIndex.OpenOnChainCuckooTable(storage, onChainSize)
 	onChain.Initialize(onChainSize)
-	cache := cuckoo_cache.NewLocalNodeCache[KeyType](localSize, onChain, cacheBackingStore.NewMockBackingStore[KeyType]())
+	cache := cuckoocache.NewLocalNodeCache[KeyType](localSize, onChain, cacheBackingStore.NewMockBackingStore[KeyType]())
 
 	onChainHits := uint64(0)
 	localHits := uint64(0)
 	storageReadsBefore, storageWritesBefore := storage.(*onChainStorage.MockOnChainStorage).GetAccessCounts()
 	for _, key := range accesses {
-		if cuckoo_cache.IsInLocalNodeCache(cache, key) {
+		if cuckoocache.IsInLocalNodeCache(cache, key) {
 			localHits++
 		}
-		_, hit := cuckoo_cache.ReadItemFromLocalCache(cache, key)
+		_, hit := cuckoocache.ReadItemFromLocalCache(cache, key)
 		if hit {
 			onChainHits++
 		}
