@@ -3,12 +3,15 @@
 
 package onChainStorage
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"encoding/binary"
+	"github.com/ethereum/go-ethereum/common"
+)
 
 type OnChainStorage interface {
 	Get(location common.Hash) (common.Hash, error)
 	Set(location, value common.Hash) error
-	Slot(location common.Hash) OnChainStorageSlot
+	Slot(location uint64) OnChainStorageSlot
 }
 
 type OnChainStorageSlot interface {
@@ -59,10 +62,11 @@ func (m *MockOnChainStorage) Set(location, value common.Hash) error {
 	return nil
 }
 
-func (m *MockOnChainStorage) Slot(location common.Hash) OnChainStorageSlot {
+func (m *MockOnChainStorage) Slot(offset uint64) OnChainStorageSlot {
+	zeroes := [24]byte{}
 	return &MockOnChainStorageSlot{
 		sto:      m,
-		location: location,
+		location: common.BytesToHash(binary.LittleEndian.AppendUint64(zeroes[:], offset)),
 	}
 }
 

@@ -20,7 +20,7 @@ func OpenOnChainCuckooTable(storage onChainStorage.OnChainStorage, cacheCapacity
 	return &OnChainCuckooTable{
 		storage:       storage,
 		cacheCapacity: cacheCapacity,
-		header:        storage.Slot(common.Hash{}),
+		header:        storage.Slot(0),
 		slots:         make([]onChainStorage.OnChainStorageSlot, cacheCapacity*NumLanes),
 	}
 }
@@ -58,7 +58,7 @@ func (sb *OnChainCuckooTable) slotForTableEntry(slot, lane uint64) onChainStorag
 	slotNum := lane*sb.cacheCapacity + slot
 	theSlot := sb.slots[slotNum]
 	if theSlot == nil {
-		theSlot = sb.storage.Slot(common.BytesToHash(binary.LittleEndian.AppendUint64([]byte{}, slotNum+1)))
+		theSlot = sb.storage.Slot(slotNum + 1)
 		sb.slots[slotNum] = theSlot
 	}
 	return theSlot

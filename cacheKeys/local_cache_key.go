@@ -46,3 +46,17 @@ func (key AddressLocalCacheKey) ToCacheKey() [24]byte {
 	copy(ret[20:24], ret[0:4])
 	return ret
 }
+
+type CacheKey256 struct {
+	key onChainIndex.CacheItemKey
+}
+
+func NewCacheKey256(h common.Hash) CacheKey256 {
+	buf := [24]byte{}
+	copy(buf[:], h[:24])
+	return CacheKey256{buf}
+}
+
+func (key CacheKey256) ToCacheKey() [24]byte {
+	return key.key
+}
