@@ -11,7 +11,7 @@ import (
 type OnChainStorage interface {
 	Get(location common.Hash) (common.Hash, error)
 	Set(location, value common.Hash) error
-	Slot(location uint64) OnChainStorageSlot
+	NewSlot(offset uint64) OnChainStorageSlot
 }
 
 type OnChainStorageSlot interface {
@@ -62,7 +62,7 @@ func (m *MockOnChainStorage) Set(location, value common.Hash) error {
 	return nil
 }
 
-func (m *MockOnChainStorage) Slot(offset uint64) OnChainStorageSlot {
+func (m *MockOnChainStorage) NewSlot(offset uint64) OnChainStorageSlot {
 	zeroes := [24]byte{}
 	return &MockOnChainStorageSlot{
 		sto:      m,
